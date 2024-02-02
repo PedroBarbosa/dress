@@ -122,15 +122,16 @@ def preprocessing(data: pr.PyRanges, **kwargs):
         use_full_seqs=kwargs["use_full_sequence"],
     )
 
-    write_output(
-        extracted=extracted,
-        absent_in_gtf=absent_in_gtf,
-        extracted_with_seqs=data,
-        dpsi_info=dpsi_info,
-        with_NAs=na_exons,
-        level=level,
-        **kwargs,
-    )
+    if os.path.isdir(kwargs["outdir"]):
+        write_output(
+            extracted=extracted,
+            absent_in_gtf=absent_in_gtf,
+            extracted_with_seqs=data,
+            dpsi_info=dpsi_info,
+            with_NAs=na_exons,
+            level=level,
+            **kwargs,
+        )
 
     return process_ss_idx(data, return_seqs=True)
 

@@ -564,7 +564,8 @@ def configureEvolution(
             ]
         )
 
-    dump_yaml(os.path.join(kwargs["outdir"], "args_used.yaml"), **kwargs)
+    if os.path.isdir(kwargs["outdir"]):
+        dump_yaml(os.path.join(kwargs["outdir"], "args_used.yaml"), **kwargs)
 
     return (
         GP(
