@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools >= 61.0.0", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dress"
+description = "Deep learning based Resource for Exploring Splicing Signatures"
+authors = [
+    {name = "Pedro Barbosa", email = "psbpedrobarbosa@gmail.com"},
+]
+
+version = "0.0.1"
+readme = "README.md"
+requires-python = "~=3.10"
+
+[project.urls]
+homepage = "https://github.com/PedroBarbosa/generativeSplicing"
+repository = "https://github.com/PedroBarbosa/generativeSplicing"
+documentation = "https://github.com/PedroBarbosa/generativeSplicing"
+
+[project.license]
+text = "https://opensource.org/licenses/GPL-3.0"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["dress", "dress.datasetgeneration", "dress.datasetfilter"]
+
+[tool.ruff]
+line-length = 120
+
+[tool.pytest.ini_options]
+addopts = "-W ignore::DeprecationWarning"
+
+[project.scripts]
+dress = "dress.cli:cli"
