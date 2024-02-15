@@ -208,6 +208,7 @@ def get_fasta_sequences(
 
         pd.Series: Additional column with the fasta sequence for the requested interval
     """
+
     if slack is not None and any(
         x is not None for x in [slack_upstream, slack_downstream]
     ):
@@ -234,14 +235,14 @@ def get_fasta_sequences(
 
     try:
         if is_one_based:
-            x[start_col] - 1   
+            x[start_col] - 1
         else:
             start = x[start_col]
-            
+
         end = x[end_col]
 
-        if slack is not None:                
-            start -= slack 
+        if slack is not None:
+            start -= slack
             end += slack
 
         if slack_upstream is not None:
@@ -313,6 +314,48 @@ def get_fasta_sequences(
             "make sure that the apply function is performed rowwise "
             "(axis=1), when extracting fasta sequences.".format(x.Chromosome)
         )
+
+
+def bed_file_to_genomics_df(data: str):
+    """
+    Reads a bed file (0-based) and creates a genomics df for downstream
+    interval operations.
+
+    Args:
+        data: str: Input bed file
+    """
+
+    try:
+        for l in open(data).readlines():
+            start = l.split()[1]
+            end = l.split()[2]
+            int(start)
+            int(end)
+
+    except IndexError:
+        raise IndexError(f"{data} does not seem to be a valid bed file.")
+
+    except ValueError:
+
+        raise ValueError(
+            f"{data}' file does not seem to have a proper bed format. "
+            "Does it have an header? If so, remove it"
+        )
+
+    c_map = {0: "Chromosome", 1: "Start", 2: "End", 3: "Name", 4: "Score", 5: "Strand"}
+    df = pd.read_csv(data, sep="\t", header=None)
+    if len(df.columns) >= 6:
+        if not df.iloc[:, 5].isin(["+", "-"]).all():
+            raise ValueError(
+                f"Strand column (6th) must contain only '+' or '-' values."
+            )
+    cols = []
+    for i in range(len(list(df))):
+        c = c_map.get(i, "Col")
+        c = c + "_{}".format(i) if c == "Col" else c
+        cols.append(c)
+    df.columns = cols
+    return pr.PyRanges(df)
 
 
 def tabular_file_to_genomics_df(
@@ -468,7 +511,7 @@ def generate_pipeline_input(
     out, out_dpsi = [], []
 
     for _, seq_record in df.iterrows():
-      
+
         if use_full_seqs:
             if seq_record.Strand == "+":
                 start = "Start_upstream" + _level if level != 0 else "Start"
@@ -484,7 +527,7 @@ def generate_pipeline_input(
                 start_col=start,
                 end_col=end,
                 slack=extend_borders,
-                is_one_based=False
+                is_one_based=False,
             )
 
             spanning_coords = (
@@ -551,35 +594,66 @@ def generate_pipeline_input(
                     int: The number of base pairs to extend the coordinates
                 """
                 if region == "upstream":
-                    
+
                     if seq_record.Strand == "+":
-                        if seq_record.Start - seq_record["End_upstream{}".format(_level)] >= 5000:
-                    
+                        if (
+                            seq_record.Start
+                            - seq_record["End_upstream{}".format(_level)]
+                            >= 5000
+                        ):
+
                             return 5000
 
                         else:
-                            return seq_record.Start - seq_record["Start_upstream{}".format(_level)] + extend_borders
-                    
+                            return (
+                                seq_record.Start
+                                - seq_record["Start_upstream{}".format(_level)]
+                                + extend_borders
+                            )
+
                     else:
-                        if seq_record["Start_upstream{}".format(_level)] - seq_record.End >= 5000:
-        
+                        if (
+                            seq_record["Start_upstream{}".format(_level)]
+                            - seq_record.End
+                            >= 5000
+                        ):
+
                             return 5000
                         else:
-                            return seq_record["End_upstream{}".format(_level)] - seq_record.End + extend_borders
+                            return (
+                                seq_record["End_upstream{}".format(_level)]
+                                - seq_record.End
+                                + extend_borders
+                            )
 
                 else:
                     if seq_record.Strand == "+":
-                        if (seq_record["Start_downstream{}".format(_level)]
-                            - seq_record.End >= 5000):
+                        if (
+                            seq_record["Start_downstream{}".format(_level)]
+                            - seq_record.End
+                            >= 5000
+                        ):
                             return 5000
                         else:
-                            return seq_record["End_downstream{}".format(_level)] - seq_record.End + extend_borders
+                            return (
+                                seq_record["End_downstream{}".format(_level)]
+                                - seq_record.End
+                                + extend_borders
+                            )
                     else:
-                        
-                        if seq_record.Start - seq_record["End_downstream{}".format(_level)] >= 5000:
+
+                        if (
+                            seq_record.Start
+                            - seq_record["End_downstream{}".format(_level)]
+                            >= 5000
+                        ):
                             return 5000
                         else:
-                            return seq_record.Start - seq_record["Start_downstream{}".format(_level)] + extend_borders
+                            return (
+                                seq_record.Start
+                                - seq_record["Start_downstream{}".format(_level)]
+                                + extend_borders
+                            )
 
             slack_upst = _get_slack(
                 seq_record,
@@ -587,6 +661,7 @@ def generate_pipeline_input(
                 _level=_level,
                 extend_borders=extend_borders,
             )
+
             slack_downst = _get_slack(
                 seq_record,
                 region="downstream",
@@ -601,13 +676,13 @@ def generate_pipeline_input(
                 end_col="End",
                 slack_upstream=slack_upst,
                 slack_downstream=slack_downst,
-                is_one_based=False
+                is_one_based=False,
             )
- 
+
             if seq_record.Strand == "+":
                 left = seq_record.Start - slack_upst
                 right = seq_record.End + slack_downst
-    
+
             else:
                 left = seq_record.Start - slack_downst
                 right = seq_record.End + slack_upst
@@ -638,7 +713,7 @@ def generate_pipeline_input(
                     acceptor_idx,
                     donor_idx,
                     seq_record.transcript_id,
-                    seq_record.Name,
+                    f"{seq_record.Chromosome}:{seq_record.Start + 1}-{seq_record.End}",
                 ]
             )
 
