@@ -127,12 +127,13 @@ def assign_proper_basename(outbasename: str) -> str:
     return output_bn
 
 
-def open_fasta(fasta: Union[str, Fasta]):
+def open_fasta(fasta: Union[str, Fasta], cache_dir: str) -> Fasta:
     """
-    Creates faidx index for fast random access.
+    Opens a fasta file for fast random access.
 
     :param str fasta: Original Fasta file
     """
+
     if isinstance(fasta, Fasta):
         return fasta
 
@@ -146,6 +147,17 @@ def open_fasta(fasta: Union[str, Fasta]):
             raise ValueError("Make sure you provide an uncompressed fasta for pyfaidx")
 
         return Fasta(fasta)
+    
+    else:
+        default_path = os.path.join(cache_dir, "GRCh38.primary_assembly.genome.fa")
+        try:
+            open(default_path).readline()
+        except FileNotFoundError:
+            raise FileNotFoundError("Fasta file was not originally provided. "
+                                    "Tried to look instead into the cache directory for the default filename "
+                                    f"{default_path}, but it was not found. "
+                                    "Please provide a valid fasta file via the --genome option.")
+        return Fasta(default_path)
     return None
 
 
