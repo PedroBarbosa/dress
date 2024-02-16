@@ -1,7 +1,6 @@
 import rich_click as click
 import os
 import re
-import random
 from pathlib import Path
 
 
@@ -17,13 +16,13 @@ from dress.datasetgeneration.evolution import (
 )
 from dress.datasetgeneration.preprocessing.utils import (
     process_ss_idx,
+    bed_file_to_genomics_df,
     tabular_file_to_genomics_df,
 )
 
-from dress.datasetgeneration.validate_args import check_args
+from dress.datasetgeneration.validate_args import check_args, check_gpu
 from dress.datasetgeneration.preprocessing.gtf_cache import preprocessing
 from dress.datasetgeneration.logger import setup_logger
-import tensorflow as tf
 
 
 DATA_PATH = Path(__file__).parents[2] / "data"
@@ -108,7 +107,7 @@ class OptionEatAll(click.Option):
     "-gn",
     "--genome",
     type=click.Path(exists=True, resolve_path=True),
-    default=f"{DATA_PATH}/cache/Homo_sapiens.GRCh38.dna.primary_assembly.fa",
+    default=f"{DATA_PATH}/cache/GRCh38.primary_assembly.genome.fa",
     help="Genome in fasta format. Only used when 'input' is 'bed' or 'tabular'.",
 )
 @click.option(
@@ -478,46 +477,61 @@ def generate(**args):
     If any of the tabular option is provided (txt|tab|tsv), it expects a header line with informative column names.)
     """
     args = check_args(args)
-    logger = setup_logger(level=int(args["verbosity"]))
-    os.makedirs(args["outdir"], exist_ok=True)
+    args["logger"] = setup_logger(level=int(args["verbosity"]))
+    #check_gpu(**args)
 
-    if any(args["input"].endswith(ext) for ext in ["fa", "fasta"]):
-        ext = os.path.splitext(args["input"])[1]
-        seqs = fasta_to_dict(args["input"])
-        ss_idx, _ = process_ss_idx(seqs, args["input"].replace(ext, "_ss_idx.tsv"))
+    # os.makedirs(args["outdir"], exist_ok=True)
 
-    elif args["input"].endswith("bed"):
-        raise NotImplementedError("Bed files are not supported yet.")
+    # if any(args["input"].endswith(ext) for ext in ["fa", "fasta"]):
+    #     ext = os.path.splitext(args["input"])[1]
+    #     seqs = fasta_to_dict(args["input"])
+    #     ss_idx, _ = process_ss_idx(seqs, args["input"].replace(ext, "_ss_idx.tsv"))
 
-    elif any(args["input"].endswith(ext) for ext in ["tsv", "txt", "tab"]):
-        df = tabular_file_to_genomics_df(
-            args["input"],
-            col_index=0,
-            is_0_based=False,
-            header=0,
-        )
+    # elif args["input"].endswith("bed"):
+    #     df = bed_file_to_genomics_df(args["input"])
+    #     seqs, ss_idx = preprocessing(df, **args)
+        
+    # elif any(args["input"].endswith(ext) for ext in ["tsv", "txt", "tab"]):
+    #     df = tabular_file_to_genomics_df(
+    #         args["input"],
+    #         col_index=0,
+    #         is_0_based=False,
+    #         header=0,
+    #     )
 
-        seqs, ss_idx = preprocessing(df, **args)
+    #     seqs, ss_idx = preprocessing(df, **args)
 
-    else:
-        raise NotImplementedError(
-            "Input file format not recognized [only *fa, *fasta, *bed, *tsv *txt, *tab allowed]."
-        )
+    # else:
+    #     raise NotImplementedError(
+    #         "Input file format not recognized [only *fa, *fasta, *bed, *tsv *txt, *tab allowed]."
+    #     )
+
 
     if args["outbasename"] is not None and len(seqs) > 1:
         raise ValueError(
             "Do not use --outbasename argument when more than 1 sequence\
  is provided as input. Let the program automatically assign basenames based on unique seq IDs."
         )
-
+    import tensorflow as tf
+    import random
+    os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
+    print(tf.config.list_physical_devices("GPU"))
+    exit(1)
     if args["disable_gpu"]:
         os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
         tf.config.set_visible_devices([], "GPU")
     else:
-        gpu = random.choice(tf.config.experimental.list_physical_devices("GPU"))
-        tf.config.experimental.set_memory_growth(gpu, True)
-        os.environ["CUDA_VISIBLE_DEVICES"] = gpu.name.split(":")[-1]
-
+        try:
+            print(tf.config.list_physical_devices("GPU"))
+            gpu = random.choice(tf.config.list_physical_devices("GPU"))
+            tf.config.experimental.set_memory_growth(gpu, True)
+            os.environ["CUDA_VISIBLE_DEVICES"] = gpu.name.split(":")[-1]
+        except IndexError:
+            os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+            tf.config.set_visible_devices([], "GPU")
+            args['logger'].warning("No GPU found. Running on CPU.")
+        
+    exit(1)
     for seq_id, SEQ in seqs.items():
         if args["outbasename"]:
             outbasename = args["outbasename"]

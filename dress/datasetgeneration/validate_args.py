@@ -1,5 +1,8 @@
 import rich_click as click
 import yaml
+import random
+import os
+import tensorflow as tf
 from jsonschema import ValidationError, validate
 from dress.datasetgeneration.json_schema import schema, flatten_dict
 
@@ -81,6 +84,23 @@ GENERATE_GROUP_OPTIONS = {
 }
 
 
+def check_gpu(**args) -> None:
+    # GPU
+    if args["disable_gpu"]:
+        os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+        tf.config.set_visible_devices([], "GPU")
+    else:
+        try:
+            print(tf.config.experimental.list_physical_devices("GPU"))
+            gpu = random.choice(tf.config.experimental.list_physical_devices("GPU"))
+            tf.config.experimental.set_memory_growth(gpu, True)
+            os.environ["CUDA_VISIBLE_DEVICES"] = gpu.name.split(":")[-1]
+        except IndexError:
+            os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+            tf.config.set_visible_devices([], "GPU")
+            args['logger'].warning("No GPU found. Running on CPU.")
+    exit(1)
+    
 def check_args(args) -> dict:
     """
     Checks if the combination of given arguments is valid.
@@ -101,8 +121,6 @@ def check_args(args) -> dict:
             print("YAML file validation failed:")
             print(e)
             exit(1)
-
-        return args
 
     # Selection operators
     if len(args["operators_weight"]) != len(args["elitism_weight"]) or len(
@@ -174,5 +192,5 @@ def check_args(args) -> dict:
         raise click.UsageError(
             f"Sum of weights for SNV, Insertions and Deletions can't exceed 1 (observed: {weight_sums})"
         )
-
+        
     return args
