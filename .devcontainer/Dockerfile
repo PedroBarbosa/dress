@@ -1,3 +1,4 @@
+
 FROM ubuntu:22.04
 
 ARG DEBIAN_FRONTEND=noninteractive
@@ -37,10 +38,13 @@ RUN apt-get update && \
 RUN wget https://github.com/conda-forge/miniforge/releases/latest/download/Mambaforge-Linux-x86_64.sh && bash Mambaforge-Linux-x86_64.sh -b -p /opt/mamba 
 ENV PATH="/opt/mamba/bin:${PATH}" 
 
-RUN mamba install -y -c conda-forge cudatoolkit=11.2.2 cudnn=8.1.0 gcc
+#RUN mamba install -y -c nvidia/label/cuda-12.3.0 cuda
+RUN mamba install -y -c conda-forge python=3.10.10 cudatoolkit cudnn gcc
+#cudatoolkit=11.2.2 cudnn=8.1.0 gcc
+
 ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/mamba/lib
 RUN python -m pip install tensorflow==2.11.0 loguru jsonschema tqdm pandas==2.0.3 pandarallel biopython spliceai==1.3.1 pyranges scikit-learn seaborn statsmodels dna_features_viewer rich_click pyyaml
-RUN mamba install -c bioconda meme==5.5.3
+RUN mamba install -y -c bioconda meme==5.5.3
 
 # MEME suite v5.5.3
 # RUN wget https://meme-suite.org/meme/meme-software/5.5.3/meme-5.5.3.tar.gz && tar -xvzf meme-5.5.3.tar.gz && cd meme-5.5.3 && ./configure --prefix=/opt/meme --enable-build-libxml2 --enable-build-libxslt && make && make test && make install
@@ -50,9 +54,7 @@ WORKDIR /work
 RUN rm -rf /tmp
 
 # GeneticEngine
-RUN pip install --upgrade --no-cache-dir GeneticEngine==0.8.1
-#RUN git clone https://github.com/alcides/GeneticEngine.git && cd GeneticEngine && git checkout d925deb && python -m pip install -r requirements.txt -e .
-#ENV PYTHONPATH="${PYTHONPATH}:/work/GeneticEngine/"
+RUN pip install --upgrade --no-cache-dir GeneticEngine==0.8.5
 
 # Pangolin
 RUN pip install torch --index-url https://download.pytorch.org/whl/cu113

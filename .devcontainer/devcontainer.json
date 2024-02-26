@@ -3,12 +3,11 @@
 {
 	"name": "SpliceAI GPU environment",
 	// Name of an image in a container registry
-	"build": {
-	"dockerfile": "Dockerfile",
-	"context": "."
-	},
-	"initializeCommand": "ls",
-	//"image": "pbarbosa/spliceai:0.0.2",
+	// "build": {
+	// "dockerfile": "Dockerfile",
+	// "context": "."
+	// },
+	"image": "pbarbosa/spliceai:0.0.2",
 	// Features to add to the dev container. More info: https://containers.dev/features.
 	// "features": {},
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.

@@ -5,10 +5,10 @@ generate:
   model: spliceai
   model_scoring_metric: mean
   disable_gpu: false
-  outdir: RBFOX2_knockdown
+  outdir: RON_exon11
   outbasename:
   preprocessing:
-    cache_dir: data/cache/
+    cache_dir: /workspaces/dress/data/cache/
     genome:
     use_full_sequence: false
   fitness:

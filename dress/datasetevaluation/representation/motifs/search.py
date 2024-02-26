@@ -59,7 +59,15 @@ class MotifSearch:
                 self.motif_db_file,
             ) = self._read_PWMs(to_flat=to_flat)
 
+        # print(self.motifs)
+        # print(self.pwm_ids_per_rbp)
+        # print(self.motif_db_file)
+        # exit(1)
         self.subset_RBPs_in_motif_database()
+        print(len(self.motifs))
+        print(self.pwm_ids_per_rbp)
+        print(self.motif_db_file)
+        exit(1)
 
     def scan():
         ...
@@ -294,7 +302,6 @@ class MotifSearch:
             )
 
         elif self.motif_db == "cisBP_RNA":
-            raise NotImplementedError("Not implemented yet. Use other --motif_db")
             db = os.path.join(
                 os.path.dirname(os.path.realpath(__file__)),
                 "db/cisBP_RNA/cisBP_RNA_PWMs_database.txt",
@@ -365,7 +372,7 @@ class MotifSearch:
             if isinstance(self.subset_rbps, str):
                 if self.subset_rbps in RBP_SUBSETS.keys():
                     self.subset_rbps = RBP_SUBSETS[self.subset_rbps]
-
+                  
                 elif self.subset_rbps not in self.motifs.keys():
                     raise ValueError(
                         "RBP '{}' not found in the {} database.".format(
@@ -373,23 +380,22 @@ class MotifSearch:
                         )
                     )
 
-            else:
-                absent = [x for x in self.subset_rbps if x not in self.motifs.keys()]
+            absent = [x for x in self.subset_rbps if x not in self.motifs.keys()]
 
-                if absent:
-                    if len(absent) == len(self.subset_rbps):
-                        raise ValueError(
-                            'None of the RBPs provided in the "--subset_rbps" argument is present in the {} database.'.format(
-                                self.motif_db
-                            )
+            if absent:
+                if len(absent) == len(self.subset_rbps):
+                    raise ValueError(
+                        'None of the RBPs provided in the "--subset_rbps" argument is present in the {} database.'.format(
+                            self.motif_db
                         )
-
-                    self.logger.log(
-                        "WARNING",
-                        "Some RBPs provided are not in the {} database:'{}'.".format(
-                            self.motif_db, ",".join(absent)
-                        ),
                     )
+
+                self.logger.log(
+                    "WARNING",
+                    "Some RBPs provided are not in the {} database (N={}):'{}'.".format(
+                        self.motif_db, len(absent), ",".join(absent)
+                    ),
+                )
 
             if self.motif_db not in ["rosina2017", "encode2020_RBNS"]:
                 self.motifs, self.pwm_ids_per_rbp = (

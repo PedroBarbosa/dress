@@ -1,98 +1,78 @@
 
 import rich_click as click
 import os
+from dress.datasetevaluation.representation.motifs.evaluator import MOTIF_SEARCH_OPTIONS
 
+from dress.datasetevaluation.run import input_options, motif_options
+from dress.datasetexplanation.motif_db import create_db
+from dress.datasetexplanation.validate_args import check_args
 from dress.datasetgeneration.dataset import structure_dataset
-from dress.datasetevaluation.off_the_shelf.dimensionality_reduction import PCA, TSNE
-
 from dress.datasetgeneration.logger import setup_logger
-from dress.datasetevaluation.representation.motifs.evaluator import MotifEvaluator
-from dress.datasetevaluation.representation.phenotypes.evaluator import (
-    PhenotypeEvaluator,
-)
-from dress.datasetevaluation.representation.sequences.evaluator import SequenceEvaluator
 
-from dress.datasetgeneration.run import OptionEatAll
-from dress.datasetevaluation.validate_args import check_args
+def test_query_db(c):
+    from pypika import Query, Table, Case
+    from pypika import functions as fn
+    import time
+    print("\nQuerying database")
+
+    motifs = Table('motifs')
+    rbp = "SRSF1"
+    #loc = "Intron_upstream"
+    #ss = "distance_to_cassette_{}".format("donor")
+    window = [10, 50]
+    
+    for i in range(3):
+        start_time = time.time()
+        q = Query.from_(motifs).groupby(motifs.id).select(motifs.id).where((motifs.RBP_name == rbp))
+        print(str(q))
+        c.execute(str(q))
+        rows = c.fetchall()
+        print(time.time() - start_time, "seconds")
+        #print(rows)
+        #start_time = time.time()
+        print(sum(rows, ()))
+        #print(time.time() - start_time, "seconds")
+        print("\n")
+
+    c.close()
+    # True sqlite syntax
+    #c.execute("SELECT seq_id, COUNT(*) as C FROM motifs WHERE distance_to_donor BETWEEN 1000 AND 1010 AND rbp_name='SRSF1' AND location='Intron_upstream' GROUP BY seq_id")
+    #cursor.execute("SELECT * FROM motifs WHERE rbp_name=? AND location=? AND distance_to_donor >=? AND distance_to_donor <=?", ["HNRNPK", "Intron_upstream_2", "200", "500"])
 
 
 @click.command(name="explain")
+@input_options
+@motif_options
 @click.option(
-    "-i",
-    "--input_seq",
-    type=click.File(),
-    help="File with information about original sequence. If not provided, we will try to automatically extract from the dataset.",
-)
-@click.option(
-    "-d",
-    "--dataset",
-    metavar="e,g. file1 file2 ...",
-    type=tuple,
-    cls=OptionEatAll,
-    required=True,
-    help="File(s) referring to the dataset generated.",
-)
-@click.option(
-    "-ai",
-    "--another_input_seq",
-    type=click.File(),
-    help="File with information about original sequences in a second dataset. If not provided, we will try to automatically extract from the second dataset.",
-)
-@click.option(
-    "-ad",
-    "--another_dataset",
-    metavar="e,g. file1 file2 ...",
-    type=tuple,
-    cls=OptionEatAll,
-    help="File(s) referring to a second dataset generated.",
-)
-@click.option(
-    "-od",
-    "--outdir",
-    default="output",
-    help="Path to where output files will be written.",
-)
-@click.option(
-    "-ob",
-    "--outbasename",
-    default="eval",
-    help="Basename to include in the output files.",
-)
-@click.option(
-    "-vb",
-    "--verbosity",
-    default=0,
-    type=click.IntRange(0, 1),
-    help="Verbosity level of the logger. Default: 0. If '1', debug "
-    "messages will be printed.",
-)
-@click.option(
-    "-g",
-    "--groups",
-    metavar="e,g. group1 group2",
-    type=tuple,
-    cls=OptionEatAll,
-    help="Group name(s) for dataset(s) argument.",
-)
-@click.option(
-    "-l",
-    "--list",
-    is_flag=True,
-    help="If '--dataset' and '--another_dataset' represent a list of files, one per line.",
-)
-def explain(**args):
+    "-mr",
+    "--motif_results",
+    help="Motif results (tabular, or sqlite) from a previous motif search for the same dataset.",
+    )
+def explain(**kwargs):
     """
     (ALPHA) Explain synthetic dataset(s) produced by <dress generate> or <dress filter>.
     """
-    args = check_args(args)
-    args["logger"] = setup_logger(level=int(args["verbosity"]))
+    logger = setup_logger(level=int(kwargs["verbosity"]))
+    kwargs['logger'] = logger
+    kwargs = check_args(kwargs)
 
-    os.makedirs(args["outdir"], exist_ok=True)
+    os.makedirs(kwargs["outdir"], exist_ok=True)
 
     dataset_obj = structure_dataset(
-        generated_datasets=[args["dataset"], args["another_dataset"]],
-        original_seqs=[args["input_seq"], args["another_input_seq"]],
-        **args,
+        generated_datasets=[kwargs["dataset"], kwargs["another_dataset"]],
+        original_seqs=[kwargs["input_seq"], kwargs["another_input_seq"]],
+        **kwargs,
     )
+    
+    kwargs.pop("dataset")
+    if kwargs['motif_results'] is None:
+        motif_searcher = MOTIF_SEARCH_OPTIONS.get(kwargs.get("motif_search"))
+        motif_search = motif_searcher(dataset=dataset_obj.data, **kwargs)
+        motif_search.tabulate_occurrences(write_output=True)
+        motif_hits = motif_search.motif_results
+        kwargs['motif_results'] = create_db(motif_hits, **kwargs)
 
-    args.pop("dataset")
+
+
+    test_query_db(kwargs['motif_results'])
+  

@@ -99,7 +99,7 @@ def check_gpu(**args) -> None:
             os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
             tf.config.set_visible_devices([], "GPU")
             args['logger'].warning("No GPU found. Running on CPU.")
-    exit(1)
+
     
 def check_args(args) -> dict:
     """
@@ -192,5 +192,6 @@ def check_args(args) -> dict:
         raise click.UsageError(
             f"Sum of weights for SNV, Insertions and Deletions can't exceed 1 (observed: {weight_sums})"
         )
-        
+    
+
     return args

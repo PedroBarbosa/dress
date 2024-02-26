@@ -14,41 +14,37 @@ from dress.datasetevaluation.representation.sequences.evaluator import SequenceE
 from dress.datasetgeneration.run import OptionEatAll
 from dress.datasetevaluation.validate_args import check_args
 
-
-@click.command(name="evaluate")
-@click.argument("evaluator", type=click.Choice(["phenotypes", "sequences", "motifs"]))
-@click.option(
+def input_options(fun):
+    fun = click.option(
     "-od",
     "--outdir",
     default="output",
     help="Path to where output files will be written.",
-)
-@click.option(
-    "-ob",
-    "--outbasename",
-    default="eval",
-    help="Basename to include in the output files.",
-)
-@click.option(
-    "-cf", "--config", help="YAML config file with values for all hyperparameters. If set, "
-    "it overrides all other non-mandatory arguments. Default: None. A working "
-    "config file is presented in 'dress/configs/evaluate.yaml' file",
-)
-@click.option(
+    )(fun)
+    
+    fun = click.option(
+        "-ob",
+        "--outbasename",
+        help="Basename to include in the output files.",
+    )(fun)
+    
+    fun = click.option(
     "-vb",
     "--verbosity",
     default=0,
     type=click.IntRange(0, 1),
     help="Verbosity level of the logger. Default: 0. If '1', debug "
     "messages will be printed.",
-)
-@click.option(
+    )(fun)
+    
+    fun = click.option(
     "-i",
     "--input_seq",
     type=click.File(),
     help="File with information about original sequence. If not provided, we will try to automatically extract from the dataset.",
-)
-@click.option(
+    )(fun)
+    
+    fun =click.option(
     "-d",
     "--dataset",
     metavar="e,g. file1 file2 ...",
@@ -56,34 +52,133 @@ from dress.datasetevaluation.validate_args import check_args
     cls=OptionEatAll,
     required=True,
     help="File(s) referring to the dataset generated.",
-)
-@click.option(
+    )(fun)
+    
+    fun = click.option(
     "-ai",
     "--another_input_seq",
     type=click.File(),
     help="File with information about original sequences in a second dataset. If not provided, we will try to automatically extract from the second dataset.",
-)
-@click.option(
+    )(fun)
+    
+    fun = click.option(
     "-ad",
     "--another_dataset",
     metavar="e,g. file1 file2 ...",
     type=tuple,
     cls=OptionEatAll,
     help="File(s) referring to a second dataset generated.",
-)
-@click.option(
+    )(fun)
+    
+    fun = click.option(
     "-g",
     "--groups",
     metavar="e,g. group1 group2",
     type=tuple,
     cls=OptionEatAll,
     help="Group name(s) for dataset(s) argument.",
-)
-@click.option(
+    )(fun)
+    
+    fun = click.option(
     "-l",
     "--list",
     is_flag=True,
     help="If '--dataset' and '--another_dataset' represent a list of files, one per line.",
+    )(fun)
+    
+    return fun
+
+def motif_options(fun):
+    fun = click.option(
+    "-mdb",
+    "--motif_db",
+    type=click.Choice(
+        ["encode2020_RBNS", "rosina2017", "oRNAment", "ATtRACT", "cisBP_RNA"]
+    ),
+    default="rosina2017",
+    help="Motif database, either in meme PWM or plain text format.",
+    )(fun)
+    
+    fun = click.option(
+    "-ms",
+    "--motif_search",
+    type=click.Choice(["plain", "fimo", "biopython"]),
+    default="plain",
+    help="How to search motifs in sequences.",
+    )(fun)
+    
+    fun = click.option(
+    "-sr",
+    "--subset_rbps",
+    metavar="e,g. rbp1 rbp2 ...",
+    type=tuple,
+    cls=OptionEatAll,
+    default=["encode"],
+    help="Subset motif scanning for the given list of RNA Binding Proteins (RBPs), or "
+    "to the RBPs belonging to a specific set. Default: ['encode'], list of "
+    "splicing-associated RBPs identified in the context of the ENCODE project.",
+    )(fun)
+
+    fun = click.option(
+    "-mnp",
+    "--min_nucleotide_probability",
+    type=float,
+    default=0.15,
+    help="Minimum probability for a nucleotide in a given position of the PWM "
+    "for it to be considered as relevant.",
+    )(fun)
+
+    fun = click.option(
+    "-mml",
+    "--min_motif_length",
+    type=int,
+    default=5,
+    help="Minimum length of a sequence motif to search in the sequences.",
+    )(fun)
+
+    fun = click.option(
+    "-qt",
+    "--qvalue_threshold",
+    type=float,
+    default=0.1,
+    help="Maximum q-value threshold from FIMO output to consider a motif occurrence as valid.",
+    )(fun)
+    
+    fun = click.option(
+    "-pt",
+    "--pssm_threshold",
+    type=float,
+    default=3,
+    help="Log-odds threshold to consider a match against a PSSM score as valid.",
+    )(fun)
+    
+    fun = click.option(
+    "--just_estimate_pssm_threshold",
+    is_flag=True,
+    help="If set, it does not run the motif search. Rather, it estimates what is a "
+    "reasonably good log-odds threshold to consider for the PSSMs of a single gene/RBP. "
+    "Only used when '--motif_search' is set to 'biopython'.",
+    )(fun)
+    
+    fun = click.option(
+    "-srmf",
+    "--skip_raw_motifs_filtering",
+    is_flag=True,
+    help="Disable the filtering of raw motif hits. By default, raw motif hits are filtered "
+    "such self-contained hits of the same RBP are removed and high-density regions are identified.",
+    )(fun)
+    
+    return fun
+
+
+@click.command(name="evaluate")
+@click.argument("evaluator", type=click.Choice(["phenotypes", "sequences", "motifs"]))
+@input_options
+@motif_options
+@click.option(
+    "-cf", "--config", help="YAML config file with values for all hyperparameters. If set, "
+    "it overrides all other non-mandatory arguments. Default: None. A working "
+    "config file is presented in 'dress/configs/evaluate.yaml' file",
 )
 @click.option(
     "-mdb",

@@ -1,7 +1,8 @@
+import sqlite3
+import pandas as pd
 import rich_click as click
-import yaml
-from jsonschema import ValidationError, validate
-from dress.datasetevaluation.validate_args import check_input_args
+from dress.datasetevaluation.validate_args import check_input_args, check_motif_args
+from dress.datasetexplanation.motif_db import create_db
 
 EXPLAIN_GROUP_OPTIONS = {
     "dress explain": [
@@ -19,6 +20,21 @@ EXPLAIN_GROUP_OPTIONS = {
             ],
         },
         {
+            "name": "Motifs-related options",
+            "options": [
+                "--motif_db",
+                "--motif_search",
+                "--subset_rbps",
+                "--min_nucleotide_probability",
+                "--min_motif_length",
+                "--pssm_threshold",
+                "--qvalue_threshold",
+                "--skip_raw_motifs_filtering",
+                "--just_estimate_pssm_threshold",
+                "--motif_enrichment",
+            ],
+        },
+        {
             "name": "Other options",
             "options": ["--verbosity", "--help"],
         },
@@ -31,4 +47,21 @@ def check_args(args) -> dict:
     Checks if the combination of given arguments is valid.
     """
     check_input_args(args)
+    check_motif_args(args)
+    
+    if args['motif_results'] is not None:
+        if args['motif_results'].endswith('MOTIF_MATCHES.tsv.gz'):
+                motif_hits = pd.read_csv(args['motif_results'], sep='\t', compression='gzip')
+                cursor = create_db(motif_hits, **args)
+        else:
+
+            # Check if it is a sqlite file
+            conn = sqlite3.connect(args['motif_results'])
+            cursor = conn.cursor() 
+            cursor.execute("PRAGMA index_list(motifs)")
+            index_info = cursor.fetchall()
+            if not any(index[1] == 'id' for index in index_info):
+                raise click.UsageError(f"Wrong '--motif_results' value. '{args['motif_results']}' is not a valid sqlite3 db or a tabular motif output written as 'MOTIF_MATCHES.tsv.gz'.")
+          
+        args['motif_results'] = cursor
     return args
