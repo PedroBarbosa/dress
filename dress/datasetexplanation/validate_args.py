@@ -28,6 +28,7 @@ EXPLAIN_GROUP_OPTIONS = {
                 "--min_nucleotide_probability",
                 "--min_motif_length",
                 "--pssm_threshold",
+                "--pvalue_threshold",
                 "--qvalue_threshold",
                 "--skip_raw_motifs_filtering",
                 "--just_estimate_pssm_threshold",
@@ -53,15 +54,14 @@ def check_args(args) -> dict:
         if args['motif_results'].endswith('MOTIF_MATCHES.tsv.gz'):
                 motif_hits = pd.read_csv(args['motif_results'], sep='\t', compression='gzip')
                 cursor = create_db(motif_hits, **args)
+    
         else:
-
             # Check if it is a sqlite file
-            conn = sqlite3.connect(args['motif_results'])
-            cursor = conn.cursor() 
-            cursor.execute("PRAGMA index_list(motifs)")
-            index_info = cursor.fetchall()
-            if not any(index[1] == 'id' for index in index_info):
-                raise click.UsageError(f"Wrong '--motif_results' value. '{args['motif_results']}' is not a valid sqlite3 db or a tabular motif output written as 'MOTIF_MATCHES.tsv.gz'.")
-          
+            try:
+                conn = sqlite3.connect(args['motif_results'])
+                cursor = conn.cursor()
+            except sqlite3.DatabaseError as e:
+                raise click.UsageError(f"'{args['motif_results']}' is not a valid SQLite database: {e}")
+            
         args['motif_results'] = cursor
     return args
