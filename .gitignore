@@ -172,5 +172,8 @@ build/
 dist/
 
 data/cache/*
+data/examples/explain
+dress/datasetevaluation
+dress/datasetexplanation
 output*
 .devcontainer
