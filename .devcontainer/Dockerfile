@@ -39,11 +39,11 @@ RUN wget https://github.com/conda-forge/miniforge/releases/latest/download/Mamba
 ENV PATH="/opt/mamba/bin:${PATH}" 
 
 #RUN mamba install -y -c nvidia/label/cuda-12.3.0 cuda
-RUN mamba install -y -c conda-forge python=3.10.10 cudatoolkit cudnn gcc
+RUN mamba install -y -c conda-forge python=3.10.12 gcc
 #cudatoolkit=11.2.2 cudnn=8.1.0 gcc
 
 ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/mamba/lib
-RUN python -m pip install tensorflow==2.11.0 loguru jsonschema tqdm pandas==2.0.3 pandarallel biopython spliceai==1.3.1 pyranges scikit-learn seaborn statsmodels dna_features_viewer rich_click pyyaml
+RUN python -m pip install tensorflow==2.15.0.post1 loguru jsonschema tqdm pandas==2.0.3 pandarallel biopython spliceai==1.3.1 pyranges scikit-learn seaborn statsmodels dna_features_viewer rich_click pyyaml
 RUN mamba install -y -c bioconda meme==5.5.3
 
 # MEME suite v5.5.3
