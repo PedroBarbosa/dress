@@ -40,6 +40,7 @@ schema = {
                         "skip_raw_motifs_filtering": {"type": "boolean"},
                         "min_nucleotide_probability": {"type": "number"},
                         "min_motif_length": {"type": "integer"},
+                        "pvalue_threshold": {"type": "number"},
                         "qvalue_threshold": {"type": "number"},
                         "pssm_threshold": {"type": "integer"},
                         "just_estimate_pssm_threshold": {"type": "boolean"},

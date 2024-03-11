@@ -29,6 +29,7 @@ EVALUATE_GROUP_OPTIONS = {
                 "--min_nucleotide_probability",
                 "--min_motif_length",
                 "--pssm_threshold",
+                "--pvalue_threshold",
                 "--qvalue_threshold",
                 "--skip_raw_motifs_filtering",
                 "--just_estimate_pssm_threshold",

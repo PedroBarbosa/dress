@@ -1,6 +1,7 @@
 from collections import defaultdict
 import itertools
 import os
+import re
 import pandas as pd
 from typing import Union
 
@@ -297,7 +298,7 @@ def _redundancy_and_density_analysis(
     _df = _tag_high_density(_df)
 
     # logger.info("Aggregating duplicate motifs across multiple RBPs")
-    #_df = _remove_duplicate_hits(_df)
+    # _df = _remove_duplicate_hits(_df)
     if isinstance(_df, pr.PyRanges):
         _df = _df.as_df()
 
@@ -493,3 +494,335 @@ def _remove_duplicate_hits(gr: pr.PyRanges) -> pr.PyRanges:
             out = pd.concat([out, no_dup])
 
         return pr.PyRanges(out).sort()
+
+
+def _get_loc_of_motif(_info: pd.DataFrame, _dataset: pd.DataFrame):
+    """
+    Generate spatial information of where
+    motif features occur in the sequences.
+
+    :param pd.DataFrame info: Dataframe with motif occurrences
+    :param pd.DataFrame dataset: Input dataset
+
+    :return pd.DataFrame: Motif ocurrences with additional
+    spatial resolution: location, and distances to known
+    splice sites
+    """
+
+    def _generate_intervals(ss_idx: pd.DataFrame):
+        """
+        Generates pyranges of the exon/intron
+        intervals for each input sequence with
+        splice site information
+
+        :return pr.PyRanges: Exon intervals
+        :return pr.PyRanges: Intron intervals
+        """
+        # Pyranges of the reference seqs
+        chrom_e, start_e, end_e, label_e = [], [], [], []
+        chrom_i, start_i, end_i, label_i = [], [], [], []
+        tags_e = ["Exon_upstream", "Exon_cassette", "Exon_downstream"]
+        _ss_idx_list = ss_idx["Splice_site_positions"].apply(
+            lambda x: [int(y) if y != "<NA>" else y for y in x.split(";")]
+        )
+        _ss_idx_list = [[x[0:2], x[2:4], x[4:6]] for x in _ss_idx_list]
+        ss_idx["Splice_site_positions"] = _ss_idx_list
+
+        for _, row in ss_idx.iterrows():
+
+            seq_id = row["Seq_id"]
+            ss_idx = row["Splice_site_positions"]
+
+            ref_coords = re.split(r"[(?:\()-]", seq_id)
+            interval_len = int(ref_coords[2]) - int(ref_coords[1])
+
+            # exons
+            _ups = ss_idx[0]
+            _cass = ss_idx[1]
+            _down = ss_idx[2]
+
+            _ups = [x if isinstance(x, int) else 0 for x in _ups]
+            _down = [x if isinstance(x, int) else interval_len for x in _down]
+
+            zipped = list(zip(*[_ups, _cass, _down]))
+
+            chrom_e.extend([seq_id] * 3)
+            start_e.extend(zipped[0])
+            end_e.extend(zipped[1])
+            label_e.extend(tags_e)
+
+            # introns
+            if _ups[0] != 0:
+                chrom_i.append(seq_id)
+                start_i.append(0)
+                end_i.append(_ups[0])
+                label_i.append("Intron_upstream_2")
+
+            i_ups = [_ups[1], _cass[0]]
+            i_down = [_cass[1], _down[0]]
+            zipped = list(zip(*[i_ups, i_down]))
+            chrom_i.extend([seq_id] * 2)
+            start_i.extend(zipped[0])
+            end_i.extend(zipped[1])
+            label_i.extend(["Intron_upstream", "Intron_downstream"])
+
+            if _down[1] != ref_coords[1]:
+                chrom_i.append(seq_id)
+                start_i.append(_down[1])
+                end_i.append(interval_len)
+                label_i.append("Intron_downstream_2")
+
+        d_e = {
+            "Chromosome": chrom_e,
+            "Start": start_e,
+            "End": end_e,
+            "Strand": ["+"] * len(chrom_e),
+            "Name": label_e,
+        }
+
+        exons = pr.from_dict(d_e)
+        exons_cassette = exons[exons.Name == "Exon_cassette"]
+
+        d_i = {
+            "Chromosome": chrom_i,
+            "Start": start_i,
+            "End": end_i,
+            "Strand": ["+"] * len(chrom_i),
+            "Name": label_i,
+        }
+
+        introns = pr.from_dict(d_i)
+        return exons, exons_cassette, introns
+
+    def _distance_to_cassette(motifs: pr.PyRanges, exons: pr.PyRanges):
+        """
+        Generates motif distances to cassette exons splice site indexes
+
+        :param pr.PyRanges motifs: All motifs ocurrences in the dataset
+        :param pr.PyRanges exons: Intervals where cassette exons are located
+
+        :return pr.PyRanges: motifs with 2 additional columns representing the
+        distances to cassette splice sites
+        """
+        to_drop_cols = ["Start_b", "End_b", "Strand_b", "Name", "Distance"]
+        cass = motifs.nearest(exons, strandedness="same")
+
+        # Motifs that overlap cassette
+        cass_overlap = cass[cass.Distance == 0]
+        if not cass_overlap.empty:
+            cass_overlap.distance_to_cassette_acceptor = (
+                cass_overlap.Start - cass_overlap.Start_b
+            )
+            cass_overlap.distance_to_cassette_donor = (
+                cass_overlap.End_b - cass_overlap.End
+            )
+
+        # Motifs that locate upstream
+        cass_upstream = cass[cass.End <= cass.Start_b]
+        if not cass_upstream.empty:
+            cass_upstream.distance_to_cassette_acceptor = cass_upstream.Distance
+            cass_upstream.distance_to_cassette_donor = (
+                cass_upstream.End_b - cass_upstream.End
+            )
+
+        # Motifs that locate downstream
+        cass_downstream = cass[cass.Start >= cass.End_b]
+        if not cass_downstream.empty:
+            cass_downstream.distance_to_cassette_acceptor = (
+                cass_downstream.Start - cass_downstream.Start_b
+            )
+            cass_downstream.distance_to_cassette_donor = cass_downstream.Distance
+
+        motifs = pr.concat([cass_upstream, cass_overlap, cass_downstream])
+        motifs.distance_to_cassette_acceptor = (
+            motifs.distance_to_cassette_acceptor.clip(0)
+        )
+        motifs.distance_to_cassette_donor = motifs.distance_to_cassette_donor.clip(0)
+        return motifs.drop(to_drop_cols).sort()
+
+    def _map_exonic_motifs(motifs: pr.PyRanges, exons: pr.PyRanges):
+        """
+        Maps location of motifs that overlap with exonic intervals
+
+        :param pr.PyRanges motifs: All motifs ocurrences in the dataset
+        :param pr.PyRanges exons: Intervals where exons are located
+
+        :return pr.PyRanges: motifs with 3 additional columns representing the
+        discrete location as well as the distance to the splice sites of the
+        exon where the motif was found
+        """
+        final_to_concat = []
+        to_drop_cols = ["Start_b", "End_b", "Strand_b", "Name", "Overlap"]
+
+        _exon_match = motifs.join(exons, report_overlap=True, nb_cpu=1)
+
+        if _exon_match.__len__() > 0:
+            _exon_match.is_in_exon = True
+
+            # Subtract first/last nucleotide of exon
+            # So that they can latter be assigned to ss region
+            fully = _exon_match[
+                (_exon_match.Overlap == _exon_match.End - _exon_match.Start)
+                & (_exon_match.Start - _exon_match.Start_b > 1)
+                & (_exon_match.End_b - _exon_match.End > 1)
+            ]
+
+            # There are fully contained
+            if fully.__len__() > 0:
+                fully.location = fully.Name + "_fully_contained"
+                final_to_concat.append(fully)
+
+                # There are some partial
+                if _exon_match.__len__() != fully.__len__():
+                    _p = pd.merge(
+                        _exon_match.df,
+                        fully.df,
+                        on=list(_exon_match.df),
+                        how="left",
+                        indicator=True,
+                    )
+
+                    partial = pr.PyRanges(
+                        _p[_p._merge == "left_only"].drop("_merge", axis=1)
+                    )
+                else:
+                    partial = pr.PyRanges()
+
+            # All are partial
+            else:
+                partial = _exon_match.copy()
+
+            # PARTIAL
+            if partial.__len__() > 0:
+
+                # SHORT EXONS FULLY SPANNED BY MOTIF
+                full_span = partial[
+                    (partial.Start <= partial.Start_b) & (partial.End >= partial.End_b)
+                ]
+
+                if full_span.__len__() > 0:
+
+                    full_span.location = full_span.Name + "_fully_contained"
+                    # full_span.location = full_span.Name + "_full_span"
+                    final_to_concat.append(full_span)
+
+                    # There are some partial that are not full span
+                    if partial.__len__() != full_span.__len__():
+                        _p = pd.merge(
+                            partial.df,
+                            full_span.df,
+                            on=list(partial.df),
+                            how="left",
+                            indicator=True,
+                        )
+
+                        partial = pr.PyRanges(
+                            _p[_p._merge == "left_only"].drop("_merge", axis=1)
+                        )
+
+                # MOTIFS NEAR/SPANNING ACCEPTORS
+                acceptor_region = partial[
+                    (partial.End < partial.End_b)
+                    | (partial.Start - partial.Start_b < 2)
+                ]
+
+                if acceptor_region.__len__() > 0:
+                    acceptor_region.location = acceptor_region.Name + "_acceptor_region"
+                    final_to_concat.append(acceptor_region)
+
+                # MOTIFS NEAR/SPANNING DONORS
+                donor_region = partial[
+                    (partial.End > partial.End_b) | (partial.End_b - partial.End < 2)
+                ]
+                if donor_region.__len__() > 0:
+                    donor_region.location = donor_region.Name + "_donor_region"
+                    final_to_concat.append(donor_region)
+
+            exonic_motifs = pr.concat(final_to_concat)
+            exonic_motifs.distance_to_acceptor = (
+                exonic_motifs.Start - exonic_motifs.Start_b
+            )
+            exonic_motifs.distance_to_donor = exonic_motifs.End_b - exonic_motifs.End
+            exonic_motifs = exonic_motifs.drop(to_drop_cols)
+
+        else:
+            return pr.PyRanges()
+
+        return exonic_motifs
+
+    def _map_intronic_motifs(motifs: pr.PyRanges, introns: pr.PyRanges):
+        """
+        Maps location of motifs that exclusively overlap with intronic intervals
+
+        :param pr.PyRanges motifs: All motifs ocurrences in the dataset
+        :param pr.PyRanges introns: Intervals where introns are located
+
+        :return pr.PyRanges: motifs with 3 additional columns representing the
+        discrete location as well as the distance to the splice sites of the
+        intron where the motif was found
+        """
+        to_drop_cols = ["Start_b", "End_b", "Strand_b", "Name", "Overlap"]
+        _intron_match = motifs.join(
+            introns, report_overlap=True, nb_cpu=1, apply_strand_suffix=False
+        )
+
+        if _intron_match.__len__() > 0:
+            i_motifs = _intron_match[
+                _intron_match.Overlap == _intron_match.End - _intron_match.Start
+            ]
+
+            if i_motifs.__len__() > 0:
+                i_motifs.is_in_exon = False
+                i_motifs.location = i_motifs.Name
+                i_motifs.distance_to_acceptor = i_motifs.End_b - i_motifs.End
+                i_motifs.distance_to_donor = i_motifs.Start - i_motifs.Start_b
+                i_motifs = i_motifs.drop(to_drop_cols)
+                i_motifs = i_motifs.df
+                i_motifs.loc[
+                    i_motifs.location == "Intron_upstream_2", "distance_to_donor"
+                ] = pd.NA
+                i_motifs.loc[
+                    i_motifs.location == "Intron_downstream_2", "distance_to_acceptor"
+                ] = pd.NA
+                i_motifs = pr.PyRanges(i_motifs)
+            else:
+                return pr.PyRanges()
+        else:
+            return pr.PyRanges()
+
+        return i_motifs
+
+    ############################
+    #### Generate intervals ####
+    ############################
+    info = _info.copy()
+    dataset = _dataset.copy()
+    logger.debug(".. generating intervals fromm ss idx ..")
+    exons, exons_cassette, introns = _generate_intervals(dataset)
+    motifs = pr.PyRanges(
+        info.rename(columns={"Seq_id": "Chromosome", "start": "Start", "end": "End"})
+    )
+    motifs.Strand = "+"
+
+    #############################
+    ### Dist to cassette exon ###
+    #############################
+    logger.debug(".. calculating distances to cassette ss ..")
+    motifs = _distance_to_cassette(motifs, exons_cassette)
+    
+    ############################
+    ### Loc of exonic motifs ###
+    ############################
+    logger.debug(".. mapping location of exonic motifs ..")
+    exonic_motifs = _map_exonic_motifs(motifs, exons)
+
+    ############################
+    ## Loc of intronic motifs ##
+    ############################
+    logger.debug(".. mapping location of intronic motifs ..")
+    intronic_motifs = _map_intronic_motifs(motifs, introns)
+
+    out = pr.concat([exonic_motifs, intronic_motifs])
+    out.distance_to_acceptor = out.distance_to_acceptor.clip(0)
+    out.distance_to_donor = out.distance_to_donor.clip(0)
+    return out.sort().as_df().rename(columns={"Chromosome": "Seq_id"}).drop(columns='Strand')

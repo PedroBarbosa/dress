@@ -18,6 +18,7 @@ from pandarallel import pandarallel
 from dress.datasetevaluation.representation.motifs.rbp_lists import RBP_SUBSETS
 
 from dress.datasetevaluation.representation.motifs.utils import (
+    _get_loc_of_motif,
     _pwm_to_ambiguous,
     _pwm_to_unambiguous,
     _get_unique_pwms,
@@ -59,18 +60,9 @@ class MotifSearch:
                 self.motif_db_file,
             ) = self._read_PWMs(to_flat=to_flat)
 
-        # print(self.motifs)
-        # print(self.pwm_ids_per_rbp)
-        # print(self.motif_db_file)
-        # exit(1)
         self.subset_RBPs_in_motif_database()
-        print(len(self.motifs))
-        print(self.pwm_ids_per_rbp)
-        print(self.motif_db_file)
-        exit(1)
 
-    def scan():
-        ...
+    def scan(): ...
 
     def filter_output(self, raw_hits: pd.DataFrame):
         """
@@ -104,12 +96,14 @@ class MotifSearch:
 
         else:
             df = _redundancy_and_density_analysis(raw_hits, self.motif_search, log=True)
+        self.logger.info("Done. {} hits kept".format(df.shape[0]))
+        self.logger.log("INFO", "Mapping location of motifs")
+        def _process_single_sequence(group: pd.DataFrame, dataset:pd.DataFrame):
+            seq_id = group.iloc[0].Seq_id
+            single_seq = dataset[dataset.Seq_id == seq_id]
+            return _get_loc_of_motif(group, single_seq)
 
-        # if self.ref_ss_idx is not None:
-        #     self.logger.log('INFO', 'Mapping location of motifs')
-        #     df = _get_loc_of_motif(df, self.ref_ss_idx)
-
-        self.logger.info('Done. {} hits kept'.format(df.shape[0]))
+        df = df.groupby('Seq_id').parallel_apply(_process_single_sequence, dataset=self.dataset).reset_index(drop=True)
         return df
 
     def tabulate_occurrences(self, write_output: bool = True) -> Tuple[pd.DataFrame]:
@@ -215,7 +209,6 @@ class MotifSearch:
             )
 
         return rbp_counts, rbp_counts_detailed
-
 
     def _read_rosina(self) -> dict:
         """
@@ -372,7 +365,7 @@ class MotifSearch:
             if isinstance(self.subset_rbps, str):
                 if self.subset_rbps in RBP_SUBSETS.keys():
                     self.subset_rbps = RBP_SUBSETS[self.subset_rbps]
-                  
+
                 elif self.subset_rbps not in self.motifs.keys():
                     raise ValueError(
                         "RBP '{}' not found in the {} database.".format(
@@ -507,7 +500,8 @@ class FimoSearch(MotifSearch):
 
         Args:
             **kwargs (dict): Additional arguments, including:
-                - qvalue_threshold (float): only keep motif matches below q-value threshold. Default: `0.1`
+                - pvalue_threshold (float): only keep motif matches below p-value threshold. Default: `0.00005`
+                - qvalue_threshold (float): only keep motif matches below q-value threshold. Default: `None`
         """
         super().__init__(dataset, subset_rbps=subset_rbps, **kwargs)
 
@@ -516,7 +510,10 @@ class FimoSearch(MotifSearch):
             "encode2020_RBNS",
         ], f"{self.motif_db} motif database allowed only when '--motif_search is 'plain'"
 
-        self.qvalue_threshold = kwargs.get("qvalue_threshold", 0.1)
+        self.pvalue_threshold = kwargs.get(
+            "pvalue_threshold",
+        )
+        self.qvalue_threshold = kwargs.get("qvalue_threshold")
         self.motif_results = self.scan()
 
     def scan(self):
@@ -532,11 +529,19 @@ class FimoSearch(MotifSearch):
         :return pd.DataFrame: 0-based motif ocurrences
         """
 
-        base_cmd = ["fimo", "--norc", "--thresh", "0.001"]
+        base_cmd = [
+            "fimo",
+            "--norc",
+            "--thresh",
+            str(self.pvalue_threshold),
+            "--bfile",
+            "--motif--",
+        ]
+        if self.qvalue_threshold is None:
+            base_cmd.append("--no-qvalue")
 
         # If subset by at least one RBP, update the arg list
         # of FIMO to just use the PWM belonging to those RBPs.
-
         if self.subset_rbps:
             subset_RB = list(
                 chain(
@@ -655,19 +660,23 @@ class FimoSearch(MotifSearch):
 
         # Remove matches not passing the q-value threshold
         _n = df.shape[0]
-        df = df[df["q-value"] <= self.qvalue_threshold]
-        self.logger.log(
-            "DEBUG",
-            "Number of hits removed due to the q-value "
-            "threshold set ({}): {}".format(self.qvalue_threshold, _n - df.shape[0]),
-        )
+        if self.qvalue_threshold is not None:
 
-        if df.empty:
+            df = df[df["q-value"] <= self.qvalue_threshold]
             self.logger.log(
-                "INFO",
-                'No remaining FIMO hits after applying global thresholds ("--qvalue_threshold", "--min_nucleotide_probability")',
+                "DEBUG",
+                "Number of hits removed due to the q-value "
+                "threshold set ({}): {}".format(
+                    self.qvalue_threshold, _n - df.shape[0]
+                ),
             )
-            exit(1)
+
+            if df.empty:
+                self.logger.log(
+                    "INFO",
+                    'No remaining FIMO hits after applying "qvalue_threshold"',
+                )
+                exit(1)
         df.Start -= 1
 
         [os.remove(f) for f in fasta_files]
@@ -677,7 +686,7 @@ class FimoSearch(MotifSearch):
 
         if self.skip_raw_motifs_filtering:
             return df
-        
+
         return self.filter_output(df)
 
 
@@ -839,6 +848,6 @@ class BiopythonSearch(MotifSearch):
         self.logger.log("INFO", "Done. {} hits found".format(df.shape[0]))
 
         if self.skip_raw_motifs_filtering:
-            return df 
-        
+            return df
+
         return self.filter_output(df)

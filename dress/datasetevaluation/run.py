@@ -95,7 +95,7 @@ def motif_options(fun):
     type=click.Choice(
         ["encode2020_RBNS", "rosina2017", "oRNAment", "ATtRACT", "cisBP_RNA"]
     ),
-    default="rosina2017",
+    default="ATtRACT",
     help="Motif database, either in meme PWM or plain text format.",
     )(fun)
     
@@ -103,7 +103,7 @@ def motif_options(fun):
     "-ms",
     "--motif_search",
     type=click.Choice(["plain", "fimo", "biopython"]),
-    default="plain",
+    default="fimo",
     help="How to search motifs in sequences.",
     )(fun)
     
@@ -137,11 +137,19 @@ def motif_options(fun):
     )(fun)
 
     fun = click.option(
+    "-pt",
+    "--pvalue_threshold",
+    type=float,
+    default=0.0001,
+    help="Maximum p-value threshold from FIMO output to consider a motif occurrence as valid.",
+    )(fun)
+    
+    fun = click.option(
     "-qt",
     "--qvalue_threshold",
     type=float,
-    default=0.1,
-    help="Maximum q-value threshold from FIMO output to consider a motif occurrence as valid.",
+    default=None,
+    help="Apply additional q-value threshold (control for multiple testing) when filtering FIMO output to consider a motif occurrence as valid. Default: None. If not set, it will not be used.",
     )(fun)
     
     fun = click.option(
@@ -179,92 +187,6 @@ def motif_options(fun):
     "-cf", "--config", help="YAML config file with values for all hyperparameters. If set, "
     "it overrides all other non-mandatory arguments. Default: None. A working "
     "config file is presented in 'dress/configs/evaluate.yaml' file",
-)
-@click.option(
-    "-mdb",
-    "--motif_db",
-    type=click.Choice(
-        ["encode2020_RBNS", "rosina2017", "oRNAment", "ATtRACT", "cisBP_RNA"]
-    ),
-    default="cisBP_RNA",
-    help="Motif database, either in meme PWM or plain text format.",
-)
-@click.option(
-    "-ms",
-    "--motif_search",
-    type=click.Choice(["plain", "fimo", "biopython"]),
-    default="fimo",
-    help="How to search motifs in sequences.",
-)
-@click.option(
-    "-sr",
-    "--subset_rbps",
-    metavar="e,g. rbp1 rbp2 ...",
-    type=tuple,
-    cls=OptionEatAll,
-    default=["encode"],
-    help="Subset motif scanning for the given list of RNA Binding Proteins (RBPs), or "
-    "to the RBPs belonging to a specific set. Default: ['encode'], list of "
-    "splicing-associated RBPs identified in the context of the ENCODE project.",
-)
-@click.option(
-    "-mnp",
-    "--min_nucleotide_probability",
-    type=float,
-    default=0.15,
-    help="Minimum probability for a nucleotide in a given position of the PWM "
-    "for it to be considered as relevant.",
-)
-@click.option(
-    "-mml",
-    "--min_motif_length",
-    type=int,
-    default=5,
-    help="Minimum length of a sequence motif to search in the sequences.",
-)
-@click.option(
-    "-qt",
-    "--qvalue_threshold",
-    type=float,
-    default=0.1,
-    help="Maximum q-value threshold from FIMO output to consider a motif occurrence as valid.",
-)
-@click.option(
-    "-pt",
-    "--pssm_threshold",
-    type=float,
-    default=3,
-    help="Log-odds threshold to consider a match against a PSSM score as valid.",
-)
-@click.option(
-    "--just_estimate_pssm_threshold",
-    is_flag=True,
-    help="If set, it does not run the motif search. Rather, it estimates what is a "
-    "reasonably good log-odds threshold to consider for the PSSMs of a single gene/RBP. "
-    "Only used when '--motif_search' is set to 'biopython'.",
-)
-@click.option(
-    "-srmf",
-    "--skip_raw_motifs_filtering",
-    is_flag=True,
-    help="Disable the filtering of raw motif hits. By default, raw motif hits are filtered "
-    "such self-contained hits of the same RBP are removed and high-density regions are identified.",
-)
-@click.option(
-    "-mc",
-    "--motif_counts",
-    type=click.Choice(["gene", "motif"]),
-    default="gene",
-    help="Specifies the motif counts table for off-the-shelf evaluation and/or motif enrichment. Default: 'gene', "
-    "indicating gene-level aggregated counts. Use 'motif' for separate motif counts within the same gene.",
-)
-
-@click.option(
-    "-me",
-    "--motif_enrichment",
-    type=click.Choice(["fisher"]),
-    default="fisher",
-    help="Strategy to test motif enrichment between two groups of sequences. It will only be performed if '--another_dataset' is provided.",
 )
 def evaluate(**args):
     """
