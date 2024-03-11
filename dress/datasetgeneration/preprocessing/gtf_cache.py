@@ -31,6 +31,7 @@ def extractGeneStructure(
 
     # Read cache
     exons = pd.read_csv(_f, sep="\t")
+
     int_cols = [
         x
         for x in exons.columns
@@ -43,6 +44,7 @@ def extractGeneStructure(
     # Subset cache if gene_name|gene_id|transcript_id exist in the input data
     subset_by = ["transcript_id", "gene_name", "gene_id"]
     filt_col_found = False
+
     for filter_by in subset_by:
         if filt_col_found is False and filter_by in data.columns:
             filt_col_found = True
@@ -108,7 +110,7 @@ def preprocessing(data: pr.PyRanges, **kwargs):
     """
 
     cache_dir = kwargs["cache_dir"]
-    genome = open_fasta(kwargs["genome"])
+    genome = open_fasta(kwargs["genome"], kwargs["cache_dir"])
     level = kwargs.get("level", 2)
 
     extracted, absent_in_gtf = extractGeneStructure(
