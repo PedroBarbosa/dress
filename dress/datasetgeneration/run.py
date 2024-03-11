@@ -17,6 +17,7 @@ from dress.datasetgeneration.evolution import (
 )
 from dress.datasetgeneration.preprocessing.utils import (
     process_ss_idx,
+    bed_file_to_genomics_df,
     tabular_file_to_genomics_df,
 )
 
@@ -108,7 +109,7 @@ class OptionEatAll(click.Option):
     "-gn",
     "--genome",
     type=click.Path(exists=True, resolve_path=True),
-    default=f"{DATA_PATH}/cache/Homo_sapiens.GRCh38.dna.primary_assembly.fa",
+    default=f"{DATA_PATH}/cache/GRCh38.primary_assembly.genome.fa",
     help="Genome in fasta format. Only used when 'input' is 'bed' or 'tabular'.",
 )
 @click.option(
@@ -500,7 +501,8 @@ def generate(**args):
         ss_idx, _ = process_ss_idx(seqs, args["input"].replace(ext, "_ss_idx.tsv"))
 
     elif args["input"].endswith("bed"):
-        raise NotImplementedError("Bed files are not supported yet.")
+        df = bed_file_to_genomics_df(args["input"])
+        seqs, ss_idx = preprocessing(df, **args)
 
     elif any(args["input"].endswith(ext) for ext in ["tsv", "txt", "tab"]):
         df = tabular_file_to_genomics_df(
