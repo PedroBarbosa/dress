@@ -13,6 +13,8 @@ schema = {
                 "seed": {"type": "integer"},
                 "model": {"type": "string"},
                 "model_scoring_metric": {"type": "string"},
+                "pangolin_mode": {"type": "string"},
+                "pangolin_tissue": {"type": ["null", "string"]},
                 "fitness": {
                     "type": "object",
                     "properties": {

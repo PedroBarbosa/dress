@@ -35,6 +35,8 @@ GENERATE_GROUP_OPTIONS = {
                 "--seed",
                 "--model",
                 "--model_scoring_metric",
+                "--pangolin_mode",
+                "--pangolin_tissue",
                 "--minimize_fitness",
                 "--fitness_function",
                 "--fitness_threshold",

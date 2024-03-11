@@ -173,6 +173,19 @@ class OptionEatAll(click.Option):
     "If 'max' or 'min', the max or min score between the acceptor and donor is used, respectively. Default: mean",
 )
 @click.option(
+    "-pm",
+    "--pangolin_mode",
+    type=click.Choice(["ss_usage", "ss_probability"]),
+    default="ss_usage",
+    help="Which type of predictions to consider when '--model' is 'pangolin'. By default, it uses splice site usage, but splice site probabilities (like SpliceAI) can be used.")
+
+@click.option(
+    "-pm",
+    "--pangolin_tissue",
+    type=click.Choice(["heart", "liver", "brain", "testis"]),
+    help="Use tissue specific predictions to generate the dataset when '--model' is 'pangolin'. Default: average predictions across all tissues.")
+
+@click.option(
     "-mf",
     "--minimize_fitness",
     is_flag=True,
@@ -514,10 +527,16 @@ def generate(**args):
         os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
         tf.config.set_visible_devices([], "GPU")
     else:
-        gpu = random.choice(tf.config.experimental.list_physical_devices("GPU"))
-        tf.config.experimental.set_memory_growth(gpu, True)
-        os.environ["CUDA_VISIBLE_DEVICES"] = gpu.name.split(":")[-1]
-
+        gpus = tf.config.experimental.list_physical_devices("GPU")
+        if gpus:
+            try:    
+                for gpu in gpus:
+                    tf.config.experimental.set_memory_growth(gpu, True)
+                gpu = random.choice(gpus)
+                os.environ["CUDA_VISIBLE_DEVICES"] = gpu.name.split(":")[-1]
+            except RuntimeError as e:
+                print(e)
+        
     for seq_id, SEQ in seqs.items():
         if args["outbasename"]:
             outbasename = args["outbasename"]
@@ -540,8 +559,8 @@ def generate(**args):
         )
         logger.info("Calculating original score")
         _input = get_score_of_input_sequence(
-            _input, args["model"], args["model_scoring_metric"]
-        )
+            _input, **args)
+        
 
         write_input_seq(_input, outoriginalfn)
         archive = do_evolution(_input, **args)

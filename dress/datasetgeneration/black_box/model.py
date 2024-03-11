@@ -148,9 +148,10 @@ class Pangolin(DeepLearningModel):
     def __init__(
         self,
         context: int = 5000,
-        batch_size: int = 512,
+        batch_size: int = 64,
         scoring_metric: Literal["mean", "max", "min"] = "mean",
         mode: Literal["ss_usage", "ss_probability"] = "ss_usage",
+        tissue: Literal["heart", "liver", "brain", "testis"] = None
     ):
         """Pangolin model class"""
         super().__init__(context, batch_size, scoring_metric)
@@ -159,6 +160,13 @@ class Pangolin(DeepLearningModel):
         elif mode == "ss_probability":
             self.model_nums = [0, 2, 4, 6]
 
+        if tissue:
+            t_map_idx = {"heart": 0,
+                         "liver": 1,
+                         "brain": 2,
+                         "testis": 3}
+            self.model_nums = [self.model_nums[t_map_idx[tissue]]]
+ 
     def run(
         self, seqs: List[str], original_seq: bool = False
     ) -> Union[Dict[int, List[np.ndarray]], List[np.ndarray]]:

@@ -6,6 +6,8 @@ generate:
   seed: 0
   model: 'spliceai'
   model_scoring_metric: 'mean'
+  pangolin_mode: 'ss_usage'
+  pangolin_tissue: null
   disable_gpu: null
   outdir: 'output'
   outbasename: null
