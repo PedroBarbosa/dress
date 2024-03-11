@@ -7,8 +7,7 @@ from .black_box.model import (
 
 
 def get_score_of_input_sequence(input_seq: dict,
-                                model: str,
-                                metric: str) -> dict:
+                                **kwargs) -> dict:
     """
     Returns the model score for the input sequence
 
@@ -16,9 +15,6 @@ def get_score_of_input_sequence(input_seq: dict,
         input_seq (dict): Dictionary with several attributes about the
     the original sequence. Those are sequence ID (seq_id), the
     sequence (seq) and the splice site indexes (ss_idx)
-        model (str): Model to use for scoring the sequence    
-        metric (str): Metric to score the sequence taking 
-        into account the predictions for each splice site of an exon
         
     Returns:
         dict: Updated dictionary with the model score
@@ -28,6 +24,8 @@ def get_score_of_input_sequence(input_seq: dict,
     ss_idx = input_seq["ss_idx"]
     dry_run = input_seq["dry_run"]
 
+    model = kwargs["model"]
+    metric = kwargs["model_scoring_metric"]
     if dry_run:
         input_seq["score"] = 0.5
 
@@ -35,7 +33,9 @@ def get_score_of_input_sequence(input_seq: dict,
         model = SpliceAI(scoring_metric=metric)
         
     elif model == "pangolin":
-        model = Pangolin(scoring_metric=metric)
+        model = Pangolin(scoring_metric=metric,
+                         mode=kwargs["pangolin_mode"],
+                         tissue=kwargs["pangolin_tissue"])
     
     else:
         raise ValueError(f"Model {model} not supported")

@@ -396,7 +396,11 @@ def configureEvolution(
     if kwargs["model"] == "spliceai":
         oracle_model = SpliceAI(scoring_metric=scoring_metric)
     elif kwargs["model"] == "pangolin":
-        oracle_model = Pangolin(scoring_metric=scoring_metric)
+        oracle_model = Pangolin(
+            scoring_metric=scoring_metric,
+            mode=kwargs["pangolin_mode"],
+            tissue=kwargs["pangolin_tissue"],
+        )
     else:
         raise ValueError(f"Model {kwargs['model']} not recognized")
 
@@ -417,9 +421,9 @@ def configureEvolution(
         name=kwargs["fitness_function"],
         original_score=input_seq["score"],
         archive=archive,
-        is_lexicase_selection=True
-        if kwargs["selection_method"] == "lexicase"
-        else False,
+        is_lexicase_selection=(
+            True if kwargs["selection_method"] == "lexicase" else False
+        ),
     )
 
     mapper = configPopulationEvaluator(

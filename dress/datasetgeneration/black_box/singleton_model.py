@@ -17,7 +17,7 @@ def batch_function_pangolin(model_nums: list) -> Callable[[Any], Any]:
     
     logger.debug("Loading the models")
     # Splice site usage models, if Psplice (like SpliceAI), should use 0, 2, 4, 6
-    model_nums = [1, 3, 5, 7]
+
     models = []
     for i in model_nums:
         for j in range(1, 6):
