@@ -77,6 +77,382 @@ class OptionEatAll(click.Option):
 
         return retval
 
+def evo_alg_options_core_options(fun):
+    fun = click.option(
+        "-ps",
+        "--population_size",
+        type=int,
+        default=1000,
+        help="Size of the population. Default: 1000",
+    )(fun)
+     
+    fun = click.option(
+        "-sd",
+        "--seed",
+        type=int,
+        default=0,
+        help="Seed to use in the evolution. Default: 0",
+    )(fun)
+
+    fun = click.option(
+        "-mf",
+        "--minimize_fitness",
+        is_flag=True,
+        help="Evolve sequences that minimize a given fitness function. Default: 'False', "
+        "evolution maximizes the given fitness function.",
+    )(fun)
+
+    fun = click.option(
+        "-swa",
+        "--stop_when_all",
+        is_flag=True,
+        help="Stop evolution when all '--stopping_criterium' provided are met. Default: 'False'. "
+        "Stop evolution when any of the '--stopping_criterium' is met.",
+    )(fun)
+    
+    fun = click.option(
+        "-sm",
+        "--selection_method",
+        type=click.Choice(["tournament", "lexicase"], case_sensitive=True),
+        default="tournament",
+        help="Selection method to use. Default: 'tournament'.",
+    )(fun)
+    
+    fun = click.option(
+        "-ts",
+        "--tournament_size",
+        type=int,
+        default=5,
+        help="Number of individuals to be randomly selected from the population to do "
+        "a tournament when '--selection_method' is 'tournament'. Default: 5",
+    )(fun)
+
+    fun = click.option(
+        "-mp",
+        "--mutation_probability",
+        type=float,
+        default=0.9,
+        help="Probability of an individual to be mutated when passing through a MutationStep. Default: 0.9",
+    )(fun)
+    
+    fun =click.option(
+        "-cr",
+        "--crossover_probability",
+        type=float,
+        default=0.01,
+        help="Probability of an individual to be subjected to crossover operator when passing through a "
+        "CrossoverStep. Default: 0.01",
+    )(fun)
+    return fun
+
+def evo_alg_options_generate(fun):
+    fun = click.option(
+        "-md",
+        "--model",
+        type=click.Choice(["spliceai", "pangolin"]),
+        default="spliceai",
+        help="Deep learning model to use as the reference for the evolutionary algorithm. Default: spliceai",
+    )(fun)
+    
+    fun = click.option(
+        "-msm",
+        "--model_scoring_metric",
+        type=click.Choice(["mean", "max", "min"]),
+        default="mean",
+        help="Aggregation function to label an input sequence. If 'mean', the mean of the acceptor and donor scores is used. "
+        "If 'max' or 'min', the max or min score between the acceptor and donor is used, respectively. Default: mean",
+    )(fun)
+    
+    fun = click.option(
+        "-pm",
+        "--pangolin_mode",
+        type=click.Choice(["ss_usage", "ss_probability"]),
+        default="ss_usage",
+        help="Which type of predictions to consider when '--model' is 'pangolin'. By default, it uses splice site usage, but splice site probabilities (like SpliceAI) can be used.")(fun)
+
+    fun = click.option(
+        "-pm",
+        "--pangolin_tissue",
+        type=click.Choice(["heart", "liver", "brain", "testis"]),
+        help="Use tissue specific predictions to generate the dataset when '--model' is 'pangolin'. Default: average predictions across all tissues."
+        )(fun)
+
+    fun = click.option(
+        "-ff",
+        "--fitness_function",
+        type=click.Choice(
+            ["bin_filler", "increase_archive_diversity"], case_sensitive=True
+        ),
+        default="bin_filler",
+        help="Fitness function to use to score an individual sequence. Default: 'bin_filler', "
+        "a sequence is added to the archive if the black box prediction falls in a score bucket "
+        "that is not filled.",
+    )(fun)
+    
+    fun = click.option(
+        "-ft",
+        "--fitness_threshold",
+        type=float,
+        default=0.0,
+        help="Fitness threshold value to add sequences to the archive. Default: 0.0",
+    )(fun)
+    
+    fun =click.option(
+        "-as",
+        "--archive_size",
+        type=int,
+        default=5000,
+        help="Number of desired sequences in archive to generate a per-bin target size when "
+        "the '--fitness_function' is 'bin_filler.",
+    )(fun)
+
+    fun =click.option(
+        "-adm",
+        "--archive_diversity_metric",
+        default="normalized_shannon",
+        type=click.Choice(["normalized_shannon"]),
+        help="Metric to measure diversity of the archive in a given evolution step. "
+        "Default: 'normalized_shannon'.",
+    )(fun)
+    
+    fun = click.option(
+        "-sc",
+        "--stopping_criterium",
+        cls=OptionEatAll,
+        default=["archive_size", "time"],
+        type=tuple,
+        # type=click.Choice(
+        #     ["n_evaluations", "n_generations", "time", "archive_quality", "archive_size", "archive_diversity"],
+        #     case_sensitive=True,
+        # ),
+        metavar=f"STRING + ... e.g. -sc n_evaluations n_generations. ({'|'.join(['n_evaluations', 'n_generations', 'time', 'archive_quality', 'archive_size', 'archive_diversity'])})",
+        help="Criteria to stop evolution. If multiple criteria are given evolution will "
+        "end when any or all the criteria are met, according to the '--stop_when_all' arg. "
+        "Default: ['archive_size', 'time'], evolution finishes when one of the criterium "
+        "is met.",
+    )(fun)
+    
+    fun = click.option(
+        "-sat",
+        "--stop_at_value",
+        cls=OptionEatAll,
+        type=tuple,
+        default=[5000, 30],
+        metavar="INTEGER|FLOAT + ... e.g. -sat 10000 50.",
+        help="Value to stop evolution based on the '--stopping_criterium'. Default: [5000, 30], "
+        "considering that default '--stopping_criterium' is '['archive_size', 'time']'.",
+    )(fun)
+    
+    fun = click.option(
+        "-ow",
+        "--operators_weight",
+        metavar="FLOAT + ... e.g. -ow 0.6 0.2",
+        cls=OptionEatAll,
+        type=tuple,
+        default=[0.6],
+        help="Weight(s) given to genetic operators when doing selection. Default: 0.6, 60 percent of "
+        "the individuals in the population will be subjected to selection_method|mutation|crossover operators. "
+        "If multiple values are given, the weight will be updated at the given generation(s). "
+        "(see '--update_weights_at_generation'). The first value always refers to the initial weight, at "
+        "generation 0.",
+    )(fun)
+    
+    fun = click.option(
+        "-ew",
+        "--elitism_weight",
+        metavar="FLOAT + ... e.g. -ew 0.05 0.4",
+        cls=OptionEatAll,
+        type=tuple,
+        default=[0.05],
+        help="Weight(s) given to elitism when doing selection. Default: 0.05, the top 5 percent of "
+        "the population will be selected for the next generation. If multiple values are given, "
+        "the elitism weight will be updated at the given generation(s) (see '--update_weights_at_generation'). "
+        "The first value always refers to the initial weight, at generation 0.",
+    )(fun)
+    
+    fun = click.option(
+        "-nw",
+        "--novelty_weight",
+        metavar="FLOAT + ... e.g. -nw 0.35 0.4",
+        cls=OptionEatAll,
+        type=tuple,
+        default=[0.35],
+        help="Weight(s) given to novelty when doing selection. Default: 0.35, 35 percent of "
+        "individuals at the next generation will be novel. If multiple values are given, "
+        "the novelty weight will be updated at the given generation(s) (see '--update_weights_at_generation'). "
+        "The first value always refers to the initial weight, at generation 0.",
+    )(fun)
+    
+    fun = click.option(
+        "-uw",
+        "--update_weights_at_generation",
+        metavar="INTEGER... e.g. -uw 10 20",
+        cls=OptionEatAll,
+        type=tuple,
+        help="At which generation(s) selection weights should be updated when dynamic selection "
+        "rates are desired (e.g., when multiple values are given in '--operators_weight').",
+    )(fun)
+    
+    fun = click.option(
+        "-cmo",
+        "--custom_mutation_operator",
+        is_flag=True,
+        help="Use a custom mutation operator that mutates individuals by selecting positions in "
+        "the sequence that are close to existing perturbed positions in the same individual. "
+        "(e.g, to foster the combination of perturbations affecting a single binding "
+        "motif). Default: 'False'",
+    )(fun)
+    
+    fun = click.option(
+        "-cmow",
+        "--custom_mutation_operator_weight",
+        type=float,
+        default=0.9,
+        help="When '--custom_mutation_operator' is set, what is the weight (probability) of that operator "
+        "to be used in respect to the default (random) mutation operator. This does not affect the "
+        "'--mutation_probability' (probability that individuals exposed to a MutationStep will be "
+        "actually mutated). Default: '0.9', 90 percent using the custom mutation operator, 10 percent "
+        "using the default random operator.",
+    )(fun)
+
+    fun = click.option(
+        "-pai",
+        "--prune_archive_individuals",
+        is_flag=True,
+        help="Simplify individual genotypes so that irrelevant perturbations "
+        "(that do not change sequence score) are removed. Default: 'False'. "
+        "If set, it will prune the archive individuals at the end of the evolution.",
+    )(fun)
+    
+    fun = click.option(
+        "-pag",
+        "--prune_at_generations",
+        metavar="INTEGER + ... e.g. -pag 10 20",
+        type=tuple,
+        cls=OptionEatAll,
+        help="At which generation(s) (besides the end of evolution) pruning "
+        "of archive individuals should be performed when '--prune_archive_individuals' "
+        "is set.",
+    )(fun)
+    
+    fun = click.option(
+        "-ir",
+        "--individual_representation",
+        type=click.Choice(["tree_based"], case_sensitive=True),
+        default="tree_based",
+        help="Representation of an individual of the population. Default: 'tree_based'.",
+    )(fun)
+
+    fun = click.option(
+        "-dt",
+        "--disable_tracking",
+        is_flag=True,
+        help="Whether any tracking during evolution (population and archive-wide) should be disabled.",
+    )(fun)
+    
+    fun = click.option(
+        "-tfp",
+        "--track_full_population",
+        is_flag=True,
+        help="Whether several properties of the whole population should be tracked during evolution. "
+        "Default: 'False', only the best individual (with highest fitness) will be recorded.",
+    )(fun)
+
+    fun = click.option(
+        "-tfa",
+        "--track_full_archive",
+        is_flag=True,
+        help="Whether all individuals in the archive should be tracked during evolution. "
+        "Default: 'False', only some overall metrics of the archive will be recorded.",
+    )(fun)
+    return fun
+
+def grammar_options(fun):
+    fun = click.option(
+        "-mdu",
+        "--max_diff_units",
+        type=int,
+        default=6,
+        help="Max diffUnits (perturbations in a single sequence) allowed for each individual. Default: 6",
+    )(fun)
+    
+    fun = click.option(
+        "-snvw",
+        "--snv_weight",
+        type=float,
+        default=0.33,
+        help="Probability to generate a grammar node of type SNV. Default: 0.33",
+    )(fun)
+    
+    fun = click.option(
+        "-insw",
+        "--insertion_weight",
+        type=float,
+        default=0.33,
+        help="Probability to generate a grammar node of type RandomInsertion. Default: 0.33",
+    )(fun)
+    
+    fun =click.option(
+        "-delw",
+        "--deletion_weight",
+        type=float,
+        default=0.33,
+        help="Probability to generate a grammar node of type RandomDeletion. Default: 0.33",
+    )(fun)
+    
+    fun = click.option(
+        "-mis",
+        "--max_insertion_size",
+        type=int,
+        default=5,
+        help="Max size of a random insertion allowed in the grammar. Default: 5",
+    )(fun)
+    
+    fun = click.option(
+        "-mds",
+        "--max_deletion_size",
+        type=int,
+        default=5,
+        help="Max size of a random deletion allowed in the grammar. Default: 5",
+    )(fun)
+    
+    
+    fun = click.option(
+        "-aur",
+        "--acceptor_untouched_range",
+        metavar="INTEGER... e.g. -aur -10 2",
+        nargs=2,
+        default=[-10, 2],
+        help="How many basepairs should stay untouched in the surroundings of "
+        "each splicing acceptor. Default: [-10, 2], last 10bp of the upstream "
+        "intron and 2 first bp of the the exon. Disable restriction at the acceptor region with '-aur 0 0'.",
+    )(fun)
+    
+    fun = click.option(
+        "-dur",
+        "--donor_untouched_range",
+        metavar="INTEGER ... e.g. -dur -3 6",
+        nargs=2,
+        default=[-3, 6],
+        help="How many basepairs should stay untouched in the surroundings of "
+        "each splicing donor. Default: [-3, 6], last 3bp of the exon and first 6bp "
+        "of the intron downstream. Disable restriction at the donor region with '-dur 0 0'",
+    )(fun)
+    
+    fun = click.option(
+        "-ur",
+        "--untouched_regions",
+        cls=OptionEatAll,
+        type=tuple,
+        # type=click.Choice(
+        #    ['exon_upstream', 'intron_upstream', 'target_exon', 'intron_downstream', 'exon_downstream'],
+        #     case_sensitive=True,
+        # ),
+        metavar=f"STRING + ... e.g. -sc exon_upstream exon_downstream. ({'|'.join(['exon_upstream', 'intron_upstream', 'target_exon', 'intron_downstream', 'exon_downstream'])})",
+        help="Region(s) within the exon triplet that should stay untouched in the "
+        "evolutionary search.",
+    )(fun)
+    return fun
 
 @click.command(
     name="generate",
@@ -151,338 +527,9 @@ class OptionEatAll(click.Option):
     help="Verbosity level of the logger. Default: 0. If '1', debug "
     "messages will be printed.",
 )
-@click.option(
-    "-sd",
-    "--seed",
-    type=int,
-    default=0,
-    help="Seed to use in the evolution. Default: 0",
-)
-@click.option(
-    "-md",
-    "--model",
-    type=click.Choice(["spliceai", "pangolin"]),
-    default="spliceai",
-    help="Deep learning model to use as the reference for the evolutionary algorithm. Default: spliceai",
-)
-@click.option(
-    "-msm",
-    "--model_scoring_metric",
-    type=click.Choice(["mean", "max", "min"]),
-    default="mean",
-    help="Aggregation function to label an input sequence. If 'mean', the mean of the acceptor and donor scores is used. "
-    "If 'max' or 'min', the max or min score between the acceptor and donor is used, respectively. Default: mean",
-)
-@click.option(
-    "-pm",
-    "--pangolin_mode",
-    type=click.Choice(["ss_usage", "ss_probability"]),
-    default="ss_usage",
-    help="Which type of predictions to consider when '--model' is 'pangolin'. By default, it uses splice site usage, but splice site probabilities (like SpliceAI) can be used.")
-
-@click.option(
-    "-pm",
-    "--pangolin_tissue",
-    type=click.Choice(["heart", "liver", "brain", "testis"]),
-    help="Use tissue specific predictions to generate the dataset when '--model' is 'pangolin'. Default: average predictions across all tissues.")
-
-@click.option(
-    "-mf",
-    "--minimize_fitness",
-    is_flag=True,
-    help="Evolve sequences that minimize a given fitness function. Default: 'False', "
-    "evolution maximizes the given fitness function.",
-)
-@click.option(
-    "-ff",
-    "--fitness_function",
-    type=click.Choice(
-        ["bin_filler", "increase_archive_diversity"], case_sensitive=True
-    ),
-    default="bin_filler",
-    help="Fitness function to use to score an individual sequence. Default: 'bin_filler', "
-    "a sequence is added to the archive if the black box prediction falls in a score bucket "
-    "that is not filled.",
-)
-@click.option(
-    "-ft",
-    "--fitness_threshold",
-    type=float,
-    default=0.0,
-    help="Fitness threshold value to add sequences to the archive. Default: 0.0",
-)
-@click.option(
-    "-as",
-    "--archive_size",
-    type=int,
-    default=5000,
-    help="Number of desired sequences in archive to generate a per-bin target size when "
-    "the '--fitness_function' is 'bin_filler.",
-)
-@click.option(
-    "-adm",
-    "--archive_diversity_metric",
-    default="normalized_shannon",
-    type=click.Choice(["normalized_shannon"]),
-    help="Metric to measure diversity of the archive in a given evolution step. "
-    "Default: 'normalized_shannon'.",
-)
-@click.option(
-    "-ps",
-    "--population_size",
-    type=int,
-    default=1000,
-    help="Size of the population. Default: 1000",
-)
-@click.option(
-    "-sc",
-    "--stopping_criterium",
-    cls=OptionEatAll,
-    default=["archive_size", "time"],
-    type=tuple,
-    # type=click.Choice(
-    #     ["n_evaluations", "n_generations", "time", "archive_quality", "archive_size", "archive_diversity"],
-    #     case_sensitive=True,
-    # ),
-    metavar=f"STRING + ... e.g. -sc n_evaluations n_generations. ({'|'.join(['n_evaluations', 'n_generations', 'time', 'archive_quality', 'archive_size', 'archive_diversity'])})",
-    help="Criteria to stop evolution. If multiple criteria are given evolution will "
-    "end when any or all the criteria are met, according to the '--stop_when_all' arg. "
-    "Default: ['archive_size', 'time'], evolution finishes when one of the criterium "
-    "is met, according to the values provided in '--stop_at_value' arg. ",
-)
-@click.option(
-    "-sat",
-    "--stop_at_value",
-    cls=OptionEatAll,
-    type=tuple,
-    default=[5000, 30],
-    metavar="INTEGER|FLOAT + ... e.g. -sat 10000 50.",
-    help="Value to stop evolution based on the '--stopping_criterium'. Default: [5000, 30], "
-    "considering that default '--stopping_criterium' is '['archive_size', 'time']'.",
-)
-@click.option(
-    "-swa",
-    "--stop_when_all",
-    is_flag=True,
-    help="Stop evolution when all '--stopping_criterium' provided are met. Default: 'False'. "
-    "Stop evolution when any of the '--stopping_criterium' is met.",
-)
-@click.option(
-    "-dt",
-    "--disable_tracking",
-    is_flag=True,
-    help="Whether any tracking during evolution (population and archive-wide) should be disabled. ",
-)
-@click.option(
-    "-tfp",
-    "--track_full_population",
-    is_flag=True,
-    help="Whether several properties of the whole population should be tracked during evolution. "
-    "Default: 'False', only the best individual (with highest fitness) will be recorded.",
-)
-@click.option(
-    "-tfa",
-    "--track_full_archive",
-    is_flag=True,
-    help="Whether all individuals in the archive should be tracked during evolution. "
-    "Default: 'False', only some overall metrics of the archive will be recorded.",
-)
-@click.option(
-    "-pai",
-    "--prune_archive_individuals",
-    is_flag=True,
-    help="Simplify individual genotypes so that irrelevant perturbations "
-    "(that do not change sequence score) are removed. Default: 'False'. "
-    "If set, it will prune the archive individuals at the end of the evolution.",
-)
-@click.option(
-    "-pag",
-    "--prune_at_generations",
-    metavar="INTEGER + ... e.g. -pag 10 20",
-    type=tuple,
-    cls=OptionEatAll,
-    help="At which generation(s) (besides the end of evolution) pruning "
-    "of archive individuals should be performed when '--prune_archive_individuals' "
-    "is set.",
-)
-@click.option(
-    "-sm",
-    "--selection_method",
-    type=click.Choice(["tournament", "lexicase"], case_sensitive=True),
-    default="tournament",
-    help="Selection method to use. Default: 'tournament'.",
-)
-@click.option(
-    "-ts",
-    "--tournament_size",
-    type=int,
-    default=5,
-    help="Number of individuals to be randomly selected from the population to do "
-    "a tournament when '--selection_method' is 'tournament'. Default: 5",
-)
-@click.option(
-    "-ow",
-    "--operators_weight",
-    metavar="FLOAT + ... e.g. -ow 0.6 0.2",
-    cls=OptionEatAll,
-    type=tuple,
-    default=[0.6],
-    help="Weight(s) given to genetic operators when doing selection. Default: 0.6, 60 percent of "
-    "the individuals in the population will be subjected to selection_method|mutation|crossover operators. "
-    "If multiple values are given, the weight will be updated at the given generation(s). "
-    "(see '--update_weights_at_generation'). The first value always refers to the initial weight, at "
-    "generation 0.",
-)
-@click.option(
-    "-ew",
-    "--elitism_weight",
-    metavar="FLOAT + ... e.g. -ew 0.05 0.4",
-    cls=OptionEatAll,
-    type=tuple,
-    default=[0.05],
-    help="Weight(s) given to elitism when doing selection. Default: 0.05, the top 5 percent of "
-    "the population will be selected for the next generation. If multiple values are given, "
-    "the elitism weight will be updated at the given generation(s) (see '--update_weights_at_generation'). "
-    "The first value always refers to the initial weight, at generation 0.",
-)
-@click.option(
-    "-nw",
-    "--novelty_weight",
-    metavar="FLOAT + ... e.g. -nw 0.35 0.4",
-    cls=OptionEatAll,
-    type=tuple,
-    default=[0.35],
-    help="Weight(s) given to novelty when doing selection. Default: 0.05, 5 percent of "
-    "individuals at the next generation will be novel. If multiple values are given, "
-    "the novelty weight will be updated at the given generation(s) (see '--update_weights_at_generation'). "
-    "The first value always refers to the initial weight, at generation 0.",
-)
-@click.option(
-    "-uw",
-    "--update_weights_at_generation",
-    metavar="INTEGER... e.g. -uw 10 20",
-    cls=OptionEatAll,
-    type=tuple,
-    help="At which generation(s) selection weights should be updated when dynamic selection "
-    "rates are desired (e.g., when multiple values are given in '--operators_weight').",
-)
-@click.option(
-    "-cmo",
-    "--custom_mutation_operator",
-    is_flag=True,
-    help="Use a custom mutation operator that mutates individuals by selecting positions in "
-    "the sequence that are close to existing perturbed positions in the same individual. "
-    "(e.g, to foster the combination of perturbations affecting a single binding "
-    "motif). Default: 'False'",
-)
-@click.option(
-    "-cmow",
-    "--custom_mutation_operator_weight",
-    type=float,
-    default=0.9,
-    help="When '--custom_mutation_operator' is set, what is the weight (probability) of that operator "
-    "to be used in respect to the default (random) mutation operator. This does not affect the "
-    "'--mutation_probability' (probability that individuals exposed to a MutationStep will be "
-    "actually mutated). Default: '0.9', 90 percent using the custom mutation operator, 10 percent "
-    "using the default random operator.",
-)
-@click.option(
-    "-mp",
-    "--mutation_probability",
-    type=float,
-    default=0.9,
-    help="Probability of an individual to be mutated when passing through a MutationStep. Default: 0.9",
-)
-@click.option(
-    "-cr",
-    "--crossover_probability",
-    type=float,
-    default=0.01,
-    help="Probability of an individual to be subjected to crossover operator when passing through a "
-    "CrossoverStep. Default: 0.01",
-)
-@click.option(
-    "-ir",
-    "--individual_representation",
-    type=click.Choice(["tree_based"], case_sensitive=True),
-    default="tree_based",
-    help="Representation of an individual of the population. Default: 'tree_based'.",
-)
-@click.option(
-    "-mdu",
-    "--max_diff_units",
-    type=int,
-    default=6,
-    help="Max diffUnits (perturbations in a single sequence) allowed for each individual. Default: 6",
-)
-@click.option(
-    "-snvw",
-    "--snv_weight",
-    type=float,
-    default=0.33,
-    help="Probability to generate a grammar node of type SNV. Default: 0.33",
-)
-@click.option(
-    "-insw",
-    "--insertion_weight",
-    type=float,
-    default=0.33,
-    help="Probability to generate a grammar node of type RandomInsertion. Default: 0.33",
-)
-@click.option(
-    "-delw",
-    "--deletion_weight",
-    type=float,
-    default=0.33,
-    help="Probability to generate a grammar node of type RandomDeletion. Default: 0.33",
-)
-@click.option(
-    "-mis",
-    "--max_insertion_size",
-    type=int,
-    default=5,
-    help="Max size of a random insertion allowed in the grammar. Default: 5",
-)
-@click.option(
-    "-mds",
-    "--max_deletion_size",
-    type=int,
-    default=5,
-    help="Max size of a random deletion allowed in the grammar. Default: 5",
-)
-@click.option(
-    "-aur",
-    "--acceptor_untouched_range",
-    metavar="INTEGER... e.g. -aur -10 2",
-    nargs=2,
-    default=[-10, 2],
-    help="How many basepairs should stay untouched in the surroundings of "
-    "each splicing acceptor. Default: [-10, 2], last 10bp of the upstream "
-    "intron and 2 first bp of the the exon. Disable restriction at the acceptor region with '-aur 0 0'.",
-)
-@click.option(
-    "-dur",
-    "--donor_untouched_range",
-    metavar="INTEGER ... e.g. -dur -3 6",
-    nargs=2,
-    default=[-3, 6],
-    help="How many basepairs should stay untouched in the surroundings of "
-    "each splicing donor. Default: [-3, 6], last 3bp of the exon and first 6bp "
-    "of the intron downstream. Disable restriction at the donor region with '-dur 0 0'",
-)
-@click.option(
-    "-ur",
-    "--untouched_regions",
-    cls=OptionEatAll,
-    type=tuple,
-    # type=click.Choice(
-    #    ['exon_upstream', 'intron_upstream', 'target_exon', 'intron_downstream', 'exon_downstream'],
-    #     case_sensitive=True,
-    # ),
-    metavar=f"STRING + ... e.g. -sc exon_upstream exon_downstream. ({'|'.join(['exon_upstream', 'intron_upstream', 'target_exon', 'intron_downstream', 'exon_downstream'])})",
-    help="Region(s) within the exon triplet that should stay untouched in the "
-    "evolutionary search.",
-)
+@evo_alg_options_core_options
+@evo_alg_options_generate
+@grammar_options
 def generate(**args):
     """
     Generate a local synthetic dataset from a single input sequence.
