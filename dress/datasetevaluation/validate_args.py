@@ -80,8 +80,8 @@ def check_motif_args(args):
     if len(args["subset_rbps"]) == 1:
         args["subset_rbps"] = args["subset_rbps"][0]
 
-    if (
-        args["just_estimate_pssm_threshold"]
+    if ("just_estimate_pssm_threshold" in args.keys()
+        and args["just_estimate_pssm_threshold"]
         and args["motif_search"] != "biopython"
     ):
         raise click.UsageError(

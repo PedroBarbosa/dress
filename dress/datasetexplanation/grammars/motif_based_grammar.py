@@ -15,10 +15,11 @@ from geneticengine.grammars.coding.logical_ops import And
 from geneticengine.grammars.coding.logical_ops import Not
 from geneticengine.grammars.coding.logical_ops import Or
 from geneticengine.grammars.coding.numbers import Literal
-from geneticengine.grammar.metahandlers.ints import IntRange
+from geneticengine.metahandlers.ints import IntRange
 import numpy as np
 
 import pandas as pd
+from sklearn.linear_model import LinearRegression
 from dress.datasetgeneration.metahandlers.strings import RandomNucleotides
 from geneticengine.core.random.sources import RandomSource
 from geneticengine.metahandlers.ints import IntRange
@@ -46,7 +47,6 @@ class MotifRule(ABC):
     pass
 
 def create_grammar(
-    db: sqlite3,
     rbp_list: list,
     max_n_rules: int,
     motif_presence_weight: float,
@@ -72,12 +72,21 @@ def create_grammar(
     class DatasetExplanation(object):
         rules: Annotated[list[MotifRule], ListSizeBetween(1, max_n_rules)]
         
+        def predict(self, X: pd.DataFrame, y: pd.Series, cursor: sqlite3) -> None:
+            X = [r.evaluate(X, cursor) for r in self.rules]
+            X = np.column_stack(X)
+            model = LinearRegression().fit(X, y)
+            return model.predict(X)
+        
+        def __str__(self):
+            return "|".join([str(d) for d in self.rules])      
+         
     @dataclass
     class MotifPresence(MotifRule):
         rbp: Annotated[int, VarRange(rbp_list)]
         location: Annotated[str, VarRange(LOCATIONS)]
 
-        def evaluate(self, cursor: sqlite3, X: pd.DataFrame) -> str:
+        def evaluate(self, X: pd.DataFrame, cursor: sqlite3) -> str:
             
             motifs = Table('motifs')
             q = Query.from_(motifs).groupby(motifs.Seq_id).select(motifs.Seq_id).where((motifs.rbp_name == self.rbp) & (motifs.location.isin(LOCATIONS_MAP[self.location])))
@@ -86,7 +95,7 @@ def create_grammar(
             return np.isin(X.iloc[:, 0], res)
 
         def __str__(self):
-            return f"{self.rbp} motif at {self.location}]"
+            return f"{self.rbp} motif at {self.location}"
 
     
     return extract_grammar([MotifPresence], DatasetExplanation)

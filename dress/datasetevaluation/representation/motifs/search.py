@@ -731,7 +731,7 @@ class BiopythonSearch(MotifSearch):
 
         A score threshold is selected based on the distribution
         of the PSSM. Hits in the input sequence are selected
-        based on the position above the threshold
+        based on the positions above the threshold
         """
 
         self.logger.log("INFO", "Scanning motifs using biopython")

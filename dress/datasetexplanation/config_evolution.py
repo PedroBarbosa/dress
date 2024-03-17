@@ -1,15 +1,15 @@
 import os
-
+import sqlite3
+import pandas as pd
 from dress.datasetexplanation.custom_fitness import (
     FitnessEvaluator,
-    fitness_function_placeholder,
 )
 from dress.datasetexplanation.custom_callbacks import ExplainCSVCallback, SimplifyExplanationCallback
 from dress.datasetgeneration.custom_stopping import (
     AnyOfStoppingCriterium,
     AllOfStoppingCriterium
 )
-
+from dress.datasetgeneration.custom_callbacks import PrintBestCallbackWithGeneration
 from dress.datasetexplanation.custom_stopping import (
     ReachedRegressionRMSE,
     TimeStoppingCriterium,
@@ -31,16 +31,16 @@ from geneticengine.algorithms.gp.operators.selection import (
 
 from geneticengine.core.grammar import Grammar
 from geneticengine.core.problems import SingleObjectiveProblem
-from typing import List, Union
+from typing import List
 from geneticengine.prelude import RandomSource
 from geneticengine.core.representations.tree.treebased import TreeBasedRepresentation
 
-from dress.datasetgeneration.dataset import Dataset, PairedDataset
 from dress.datasetgeneration.os_utils import dump_yaml
 
 
 def configureEvolution(
-    dataset_obj: Union[Dataset, PairedDataset],
+    training_data: pd.DataFrame,
+    db: sqlite3.Connection,
     grammar: Grammar,
     **kwargs,
 ) -> GP:
@@ -48,8 +48,9 @@ def configureEvolution(
     Configures the evolutionary algorithm
 
     Args:
-        grammar (Grammar): Grammar object that defines the language of the
-        program.
+        training_data (pd.DataFrame): Dataset to train and get explanations from
+        db (sqlite3.Connection): Cursor of motifs database
+        grammar (Grammar): Grammar object that encodes the rule space to generate an explanation.
 
     Returns:
         GP: A Genetic Programming object to be evolved
@@ -61,18 +62,21 @@ def configureEvolution(
     random_source = RandomSource(kwargs["seed"])
     parent_selection = TournamentSelection(5)
     representation = TreeBasedRepresentation(grammar, max_depth=10)
+    
+    eval_fitness = FitnessEvaluator(
+        dataset=training_data,
+        db=db,
+        fitness_function=kwargs["fitness_function"]
+    )
     problem = SingleObjectiveProblem(
             minimize=kwargs["minimize_fitness"],
-            fitness_function=fitness_function_placeholder,
+            fitness_function=eval_fitness.fitness_function,
     )
 
     # Mutation and Crossover steps
     mutation_step = GenericMutationStep(kwargs["mutation_probability"])
     crossover_step = GenericCrossoverStep(kwargs["crossover_probability"])
 
-    seq_fitness = FitnessEvaluator(
-        name=kwargs["fitness_function"]
-    )
 
     custom_step = SequenceStep(
         ParallelStep(
@@ -131,7 +135,7 @@ def configureEvolution(
         stopping_criterium = AnyOfStoppingCriterium(all_stopping_criteria)
 
     # Callbacks
-    callbacks: List[Callback] = []
+    callbacks: List[Callback] = [PrintBestCallbackWithGeneration()]
     callbacks.append(
                 ExplainCSVCallback(
                     filename=os.path.join(

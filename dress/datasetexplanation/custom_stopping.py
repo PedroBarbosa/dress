@@ -2,8 +2,8 @@ import abc
 from dress.datasetgeneration.custom_stopping import StoppingCriterium
 from geneticengine.algorithms.heuristics import Individual
 from geneticengine.core.evaluators import Evaluator
+from geneticengine.core.fitness_helpers import best_individual
 from geneticengine.core.problems import Problem
-from typing import List
 from loguru import logger
 
 
@@ -154,8 +154,9 @@ class ReachedRegressionRSquared(StoppingCriterium):
     ) -> bool:
         if which_criteria == 0:
             self.log_archive(generation)
-
-        return evaluator.get_r2() >= self.target_r2
+            
+        bi = best_individual(population, problem)
+        return bi.get_fitness(problem).fitness_components[0] >= self.target_r2
     
 class ReachedRegressionRMSE(StoppingCriterium):
     """**StoppingCriterium adapted from geneticEngine core

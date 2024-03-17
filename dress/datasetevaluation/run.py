@@ -88,7 +88,7 @@ def input_options(fun):
     
     return fun
 
-def motif_options(fun):
+def motif_core_options(fun):
     fun = click.option(
     "-mdb",
     "--motif_db",
@@ -157,9 +157,12 @@ def motif_options(fun):
     "--pssm_threshold",
     type=float,
     default=3,
-    help="Log-odds threshold to consider a match against a PSSM score as valid.",
+    help="Log-odds threshold to consider a match against a PSSM score as valid when '--motif_search' is set to 'biopython'.",
     )(fun)
-    
+      
+    return fun
+
+def motif_extra_options(fun):
     fun = click.option(
     "--just_estimate_pssm_threshold",
     is_flag=True,
@@ -178,15 +181,15 @@ def motif_options(fun):
     
     return fun
 
-
 @click.command(name="evaluate")
 @click.argument("evaluator", type=click.Choice(["phenotypes", "sequences", "motifs"]))
 @input_options
-@motif_options
+@motif_core_options
+@motif_extra_options
 @click.option(
     "-cf", "--config", help="YAML config file with values for all hyperparameters. If set, "
     "it overrides all other non-mandatory arguments. Default: None. A working "
-    "config file is presented in 'dress/configs/evaluate.yaml' file",
+    "config file is presented in 'dress/configs/evaluate.yaml'.",
 )
 def evaluate(**args):
     """
