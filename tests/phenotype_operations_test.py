@@ -1,6 +1,6 @@
-from dress.datasetgeneration.grammars.with_indels_grammar import (
+from dress.datasetgeneration.grammars.random_perturbation_grammar import (
     DiffUnit,
-    create_grammar,
+    create_random_grammar,
 )
 from geneticengine.core.random.sources import RandomSource
 
@@ -11,7 +11,7 @@ TOY_SEQ = "ACAGCAGGGGGGTTTTAGCCGTTACAGTCGATGC"
 TOY_SS_IDX = [[3, 5], [10, 12], [15, 18]]
 TOY_DANGER_ZONE = [range(2, 6), range(8, 13), range(15, 21)]
 
-toy_grammar = create_grammar(
+toy_grammar = create_random_grammar(
     max_diff_units=6,
     snv_weight=0.33,
     insertion_weight=0.33,

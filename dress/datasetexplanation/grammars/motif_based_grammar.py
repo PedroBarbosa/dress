@@ -96,6 +96,6 @@ def create_grammar(
 
         def __str__(self):
             return f"{self.rbp} motif at {self.location}"
-
+        
     
     return extract_grammar([MotifPresence], DatasetExplanation)

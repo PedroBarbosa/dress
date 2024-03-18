@@ -40,11 +40,11 @@ class MotifSearch:
             self.logger = setup_logger(level=0)
 
         self.motif_search = kwargs.get("motif_search", "fimo")
-        self.motif_db = kwargs.get("motif_db", "cisBP_RNA")
+        self.motif_db = kwargs.get("motif_db", "ATtRACT")
         self.subset_rbps = _process_subset_argument(kwargs.get("subset_rbps", "encode"))
         self.min_motif_length = kwargs.get("min_motif_length", 5)
-        self.min_nucleotide_probability = kwargs["min_nucleotide_probability"]
-        self.skip_raw_motifs_filtering = kwargs["skip_raw_motifs_filtering"]
+        self.min_nucleotide_probability = kwargs.get("min_nucleotide_probability", 0.15)
+        self.skip_raw_motifs_filtering = kwargs.get("skip_raw_motifs_filtering", False)
         self.outdir = os.path.join(kwargs["outdir"], "motifs")
         os.makedirs(self.outdir, exist_ok=True)
         self.outbasename = assign_proper_basename(kwargs.get("outbasename"))
@@ -98,12 +98,26 @@ class MotifSearch:
             df = _redundancy_and_density_analysis(raw_hits, self.motif_search, log=True)
         self.logger.info("Done. {} hits kept".format(df.shape[0]))
         self.logger.log("INFO", "Mapping location of motifs")
-        def _process_single_sequence(group: pd.DataFrame, dataset:pd.DataFrame):
+
+        def _process_single_sequence(group: pd.DataFrame, dataset: pd.DataFrame):
             seq_id = group.iloc[0].Seq_id
             single_seq = dataset[dataset.Seq_id == seq_id]
             return _get_loc_of_motif(group, single_seq)
 
-        df = df.groupby('Seq_id').parallel_apply(_process_single_sequence, dataset=self.dataset).reset_index(drop=True)
+        if len(df.Seq_id.unique()) > 10:
+            pandarallel.initialize(progress_bar=True, verbose=0)
+            df = (
+                df.groupby("Seq_id")
+                .parallel_apply(_process_single_sequence, dataset=self.dataset)
+                .reset_index(drop=True)
+            )
+        else:
+            df = (
+                df.groupby("Seq_id")
+                .apply(_process_single_sequence, dataset=self.dataset)
+                .reset_index(drop=True)
+            )
+
         return df
 
     def tabulate_occurrences(self, write_output: bool = True) -> Tuple[pd.DataFrame]:
@@ -603,7 +617,7 @@ class FimoSearch(MotifSearch):
                 return
 
         self.logger.log(
-            "INFO", "Base command to run FIMO: {}".format(" ".join(base_cmd))
+            "DEBUG", "Base command to run FIMO: {}".format(" ".join(base_cmd))
         )
 
         fimo_outdir = self.outdir + "/fimo"
@@ -679,7 +693,10 @@ class FimoSearch(MotifSearch):
                 exit(1)
         df.Start -= 1
 
-        [os.remove(f) for f in fasta_files]
+        if isinstance(fasta_files, list):
+            [os.remove(f) for f in fasta_files]
+        else:
+            os.remove(fasta_files)
 
         df = df.drop_duplicates(["Seq_id", "RBP_name", "Start", "End"], keep="first")
         self.logger.log("INFO", "Done. {} hits found".format(df.shape[0]))

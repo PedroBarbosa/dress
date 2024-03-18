@@ -22,7 +22,7 @@ from dress.datasetgeneration.custom_population_evaluators import (
 from dress.datasetgeneration.custom_stopping import (
     EvaluationLimitCriterium,
 )
-from dress.datasetgeneration.grammars.with_indels_grammar import create_grammar
+from dress.datasetgeneration.grammars.random_perturbation_grammar import create_random_grammar
 
 from geneticengine.algorithms.gp.gp import GP
 from geneticengine.algorithms.gp.operators.combinators import ParallelStep, SequenceStep
@@ -44,7 +44,7 @@ def fitness_function(diffs) -> float:
     return 0.5
 
 
-g = create_grammar(
+g = create_random_grammar(
     max_diff_units=6,
     snv_weight=0.33,
     insertion_weight=0.33,

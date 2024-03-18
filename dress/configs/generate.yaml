@@ -55,12 +55,11 @@ generate:
     track_full_population: false
     track_full_archive: false
   grammar:
+    which_grammar: 'random'
     max_diff_units: 6
     snv_weight: 0.33
     insertion_weight: 0.33
     deletion_weight: 0.33
-    max_insertion_size: 5
-    max_deletion_size: 5
     acceptor_untouched_range:
       - -10
       - 2
@@ -68,3 +67,11 @@ generate:
       - -3
       - 6
     untouched_regions: null
+    max_insertion_size: 5
+    max_deletion_size: 5
+    motif_db: 'ATtRACT'
+    motif_search: 'fimo'
+    subset_rbps: 'encode'
+    min_nucleotide_probability: 0.15
+    min_motif_length: 5
+    qvalue_threshold: 0.01

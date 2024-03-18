@@ -1,7 +1,7 @@
 import os
 import numpy as np
 import pytest
-from dress.datasetgeneration.grammars.with_indels_grammar import create_grammar
+from dress.datasetgeneration.grammars.random_perturbation_grammar import create_random_grammar
 from dress.datasetgeneration.black_box.model import Pangolin, SpliceAI
 from geneticengine.core.random.sources import RandomSource
 from geneticengine.algorithms.gp.individual import Individual
@@ -17,7 +17,7 @@ SS_IDX = [[100, 150], [608, 641], [860, 944]]
 
 input_seq = {"seq_id": SEQ_ID, "seq": SEQ, "ss_idx": SS_IDX}
 
-g = create_grammar(
+g = create_random_grammar(
     max_diff_units=6,
     snv_weight=0.33,
     insertion_weight=0.33,

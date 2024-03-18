@@ -5,6 +5,7 @@ import itertools
 from typing import Annotated, Tuple, Union
 
 import pandas as pd
+from dress.datasetevaluation.representation.motifs.search import FimoSearch, PlainSearch
 from dress.datasetgeneration.metahandlers.strings import RandomNucleotides
 from geneticengine.core.random.sources import RandomSource
 from geneticengine.metahandlers.ints import IntRange
@@ -16,51 +17,57 @@ from geneticengine.core.grammar import Grammar, extract_grammar
 import pyranges as pr
 
 NUCLEOTIDES = ["A", "C", "G", "T"]
+MOTIF_SEARCH_OPTIONS = {
+    "fimo": FimoSearch,
+    "plain": PlainSearch,
+}
 
 
 class DiffUnit(ABC):
     pass
 
     @abc.abstractmethod
-    def mutate(self, seq: str, position_tracker: int) -> str:
-        ...
+    def perturb(self, seq: str, position_tracker: int) -> str: ...
 
     @abc.abstractmethod
-    def adjust_index(self, ss_idx: List[list]) -> List[list]:
-        ...
+    def adjust_index(self, ss_idx: List[list]) -> List[list]: ...
 
     @abc.abstractmethod
-    def sample_new_position(self, r: RandomSource) -> int:
-        ...
+    def sample_new_position(self, r: RandomSource) -> int: ...
 
     @abc.abstractmethod
-    def get_size(self) -> int:
-        ...
+    def get_size(self) -> int: ...
 
 
-def create_grammar(
-    max_diff_units: int,
-    snv_weight: float,
-    insertion_weight: float,
-    deletion_weight: float,
-    max_insertion_size: int,
-    max_deletion_size: int,
+def create_motif_grammar(
     input_seq: dict,
+    **kwargs,
 ) -> Grammar:
     """Creates a grammar for the original sequence of length seqsize
 
     Args:
-        max_diff_units (int): Maximum number of DiffUnits accepted in an individual
-        snv_weight (float): Probability to generate a SNV node from the grammar
-        insertion_weight (float): Probability to generate a RandomInsertion from the grammar
-        deletion_weight (float): Probability to generate a RandomDeletion from the grammar
-        max_insertion_size (int): Maximum size of a random insertion
-        max_deletion_size (int): Maximum size of a random deletion
         input_seq (dict): Info about the input sequence
 
     Returns:
         Grammar: Returns the grammar that specifies the production rules of the language
     """
+    print(input_seq)
+
+    original_seq = pd.DataFrame(
+        {
+            "Seq_id": [input_seq["seq_id"]],
+            "Sequence": [input_seq["seq"]],
+            "Splice_site_positions": [
+                ";".join([str(x) for sublist in input_seq["ss_idx"] for x in sublist])
+            ],
+            "Score": [input_seq["score"]],
+            "Delta_score": [0]
+        }
+    )
+    motif_searcher = MOTIF_SEARCH_OPTIONS.get(kwargs.get("motif_search"))
+    motif_search = motif_searcher(dataset=original_seq, **kwargs)
+    motif_search.tabulate_occurrences(write_output=False)
+    motif_hits = motif_search.motif_results
 
     seqsize = len(input_seq["seq"])
 
@@ -221,7 +228,7 @@ def create_grammar(
             tracker = 0
 
             for d in self.diffs:
-                seq = d.mutate(seq, position_tracker=tracker)
+                seq = d.perturb(seq, position_tracker=tracker)
 
                 if isinstance(d, RandomInsertion):
                     tracker += d.get_size()
@@ -241,7 +248,7 @@ def create_grammar(
         position: Annotated[int, IntRange(0, seqsize - 1)]
         nucleotide: Annotated[str, VarRange(NUCLEOTIDES)]
 
-        def mutate(self, seq: str, position_tracker: int) -> str:
+        def perturb(self, seq: str, position_tracker: int) -> str:
             assert self.position + position_tracker < len(seq)
             seq2 = list(seq)
             seq2[self.position + position_tracker] = self.nucleotide
@@ -271,7 +278,7 @@ def create_grammar(
         position: Annotated[int, IntRange(0, seqsize - max_deletion_size)]
         size: Annotated[int, IntRange(min=1, max=max_deletion_size)]
 
-        def mutate(self, seq: str, position_tracker: int) -> str:
+        def perturb(self, seq: str, position_tracker: int) -> str:
             assert self.position + self.size + position_tracker <= len(seq)
             return (
                 seq[: self.position + position_tracker]
@@ -300,7 +307,7 @@ def create_grammar(
         position: Annotated[int, IntRange(0, seqsize)]
         nucleotides: Annotated[str, RandomNucleotides(max_size=max_insertion_size)]
 
-        def mutate(self, seq: str, position_tracker: int) -> str:
+        def perturb(self, seq: str, position_tracker: int) -> str:
             assert self.position + position_tracker <= len(seq)
             return (
                 seq[: self.position + position_tracker]
@@ -311,9 +318,11 @@ def create_grammar(
         def adjust_index(self, ss_indexes: List[list]) -> List[list]:
             _ss_idx = list(itertools.chain(*ss_indexes))
             adj = [
-                ss + self.get_size()
-                if isinstance(ss, int) and self.position < ss
-                else ss
+                (
+                    ss + self.get_size()
+                    if isinstance(ss, int) and self.position < ss
+                    else ss
+                )
                 for ss in _ss_idx
             ]
             return [adj[0:2], adj[2:4], adj[4:6]]

@@ -99,12 +99,11 @@ schema = {
                 "grammar": {
                     "type": "object",
                     "properties": {
+                        "which_grammar": {"type": "string"},
                         "max_diff_units": {"type": "integer"},
                         "snv_weight": {"type": "number"},
                         "insertion_weight": {"type": "number"},
                         "deletion_weight": {"type": "number"},
-                        "max_insertion_size": {"type": "integer"},
-                        "max_deletions_size": {"type": "integer"},
                         "acceptor_untouched_range": {
                             "type": "array",
                             "items": {"type": "integer"},
@@ -119,6 +118,14 @@ schema = {
                                 {"type": "array", "items": {"type": "string"}},
                             ]
                         },
+                        "max_insertion_size": {"type": "integer"},
+                        "max_deletions_size": {"type": "integer"},
+                        "motif_db": {"type": "string"},
+                        "motif_search": {"type": "string"},
+                        "subset_rbps": {"type": "string"},
+                        "min_nucleotide_probability": {"type": "number"},
+                        "min_motif_length": {"type": "integer"},
+                        "pvalue_threshold": {"type": "number"},
                     },
                 },
             },

@@ -8,7 +8,7 @@ from geneticengine.core.problems import Problem
 
 from geneticengine.core.grammar import Grammar
 
-from dress.datasetgeneration.grammars.with_indels_grammar import DiffUnit
+from dress.datasetgeneration.grammars.random_perturbation_grammar import DiffUnit
 
 
 def custom_mutation_operator(
