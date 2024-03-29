@@ -28,3 +28,4 @@ dependencies:
        - pyyaml
        - pandarallel
        - scikit-learn==1.4.0
+       - ipywidgets

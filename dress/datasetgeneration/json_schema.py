@@ -41,10 +41,6 @@ schema = {
                     "type": "object",
                     "properties": {"population_size": {"type": "integer"}},
                 },
-                "individual": {
-                    "type": "object",
-                    "properties": {"representation": {"type": "string"}},
-                },
                 "selection": {
                     "type": "object",
                     "properties": {

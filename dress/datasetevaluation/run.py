@@ -96,7 +96,8 @@ def motif_core_options(fun):
         ["encode2020_RBNS", "rosina2017", "oRNAment", "ATtRACT", "cisBP_RNA"]
     ),
     default="ATtRACT",
-    help="Motif database, either in meme PWM or plain text format.",
+    help="Motif database, either in meme PWM. Default: 'ATtRACT'. Custom PWM databases "
+    "can be used by providing the path to the PWM file. This file must be in meme format.",
     )(fun)
     
     fun = click.option(
@@ -104,7 +105,7 @@ def motif_core_options(fun):
     "--motif_search",
     type=click.Choice(["plain", "fimo", "biopython"]),
     default="fimo",
-    help="How to search motifs in sequences.",
+    help="How to search motifs in sequences. Default: 'fimo'",
     )(fun)
     
     fun = click.option(
@@ -125,7 +126,7 @@ def motif_core_options(fun):
     type=float,
     default=0.15,
     help="Minimum probability for a nucleotide in a given position of the PWM "
-    "for it to be considered as relevant.",
+    "for it to be considered as relevant. Default: 0.15",
     )(fun)
 
     fun = click.option(
@@ -133,7 +134,7 @@ def motif_core_options(fun):
     "--min_motif_length",
     type=int,
     default=5,
-    help="Minimum length of a sequence motif to search in the sequences.",
+    help="Minimum length of a sequence motif to search in the sequences. Default: 5",
     )(fun)
 
     fun = click.option(
@@ -141,7 +142,7 @@ def motif_core_options(fun):
     "--pvalue_threshold",
     type=float,
     default=0.0001,
-    help="Maximum p-value threshold from FIMO output to consider a motif occurrence as valid.",
+    help="Maximum p-value threshold from FIMO output to consider a motif occurrence as valid. Default: 0.0001",
     )(fun)
     
     fun = click.option(
@@ -149,7 +150,7 @@ def motif_core_options(fun):
     "--qvalue_threshold",
     type=float,
     default=None,
-    help="Apply additional q-value threshold (control for multiple testing) when filtering FIMO output to consider a motif occurrence as valid. Default: None. If not set, it will not be used.",
+    help="Apply additional q-value threshold (control for multiple testing) when filtering FIMO output to consider a motif occurrence as valid. Default: None. If not set, it will not be used. Default: None",
     )(fun)
     
     fun = click.option(
@@ -157,7 +158,7 @@ def motif_core_options(fun):
     "--pssm_threshold",
     type=float,
     default=3,
-    help="Log-odds threshold to consider a match against a PSSM score as valid when '--motif_search' is set to 'biopython'.",
+    help="Log-odds threshold to consider a match against a PSSM score as valid when '--motif_search' is set to 'biopython'. Default: 3",
     )(fun)
       
     return fun

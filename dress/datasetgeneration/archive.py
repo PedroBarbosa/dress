@@ -442,6 +442,6 @@ class UpdateArchive(GeneticStep):
 
         self.archive.ids.append(str(ind))
         self.archive.seqs.append(ind.seq)
-        ind.seq = ""  # Free memory
+        ind.seq = ""
         self.archive.instances.append(ind)
         self.archive.predictions.append(ind.pred)

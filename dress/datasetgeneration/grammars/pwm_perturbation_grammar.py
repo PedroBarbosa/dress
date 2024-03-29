@@ -5,16 +5,24 @@ import itertools
 from typing import Annotated, Tuple, Union
 
 import pandas as pd
+import pyranges as pr
 from dress.datasetevaluation.representation.motifs.search import FimoSearch, PlainSearch
-from dress.datasetgeneration.metahandlers.strings import RandomNucleotides
+from dress.datasetgeneration.metahandlers.ints import (
+    CustomIntListDeletions,
+    CustomIntListInsertions,
+    IntRangeExcludingSomeValues,
+)
+from dress.datasetgeneration.grammars.utils import (
+    _get_forbidden_zones,
+    _get_location_map,
+)
 from geneticengine.core.random.sources import RandomSource
-from geneticengine.metahandlers.ints import IntRange
+from geneticengine.metahandlers.ints import IntList
 from geneticengine.metahandlers.lists import ListSizeBetween
 from geneticengine.metahandlers.vars import VarRange
 from geneticengine.core.decorators import weight
 from typing import List
 from geneticengine.core.grammar import Grammar, extract_grammar
-import pyranges as pr
 
 NUCLEOTIDES = ["A", "C", "G", "T"]
 MOTIF_SEARCH_OPTIONS = {
@@ -43,7 +51,7 @@ def create_motif_grammar(
     input_seq: dict,
     **kwargs,
 ) -> Grammar:
-    """Creates a grammar for the original sequence of length seqsize
+    """Creates a grammar for the original sequence
 
     Args:
         input_seq (dict): Info about the input sequence
@@ -51,25 +59,25 @@ def create_motif_grammar(
     Returns:
         Grammar: Returns the grammar that specifies the production rules of the language
     """
-    print(input_seq)
 
-    original_seq = pd.DataFrame(
-        {
-            "Seq_id": [input_seq["seq_id"]],
-            "Sequence": [input_seq["seq"]],
-            "Splice_site_positions": [
-                ";".join([str(x) for sublist in input_seq["ss_idx"] for x in sublist])
-            ],
-            "Score": [input_seq["score"]],
-            "Delta_score": [0]
-        }
-    )
-    motif_searcher = MOTIF_SEARCH_OPTIONS.get(kwargs.get("motif_search"))
-    motif_search = motif_searcher(dataset=original_seq, **kwargs)
-    motif_search.tabulate_occurrences(write_output=False)
-    motif_hits = motif_search.motif_results
-
+    max_diff_units = kwargs.get("max_diff_units", 6)
     seqsize = len(input_seq["seq"])
+    motif_searcher = MOTIF_SEARCH_OPTIONS.get(kwargs.get("motif_search"))
+    motif_search = motif_searcher(dataset=_dict_to_df(input_seq), **kwargs)
+
+    LOCATION_MAP = _get_location_map(input_seq)
+    EXCLUDED_REGIONS = _get_forbidden_zones(
+        input_seq,
+        region_ranges=LOCATION_MAP,
+        acceptor_untouched_range=kwargs.get("acceptor_untouched_range", [-10, 2]),
+        donor_untouched_range=kwargs.get("donor_untouched_range", [-3, 6]),
+        untouched_regions=kwargs.get("untouched_regions", None),
+        model=kwargs.get("model", "spliceai"),
+    )
+
+    MOTIF_INFO_SNV, MOTIF_INFO_DELS, MOTIF_INFO_INS = _structure_motif_info(
+        motif_search, seqsize, EXCLUDED_REGIONS, **kwargs
+    )
 
     @dataclass
     class DiffSequence(object):
@@ -92,12 +100,15 @@ def create_motif_grammar(
                 if the individual is empty after excluding forbidden regions
             """
             flat_forbidden = list(itertools.chain(*[x for x in forbidden_regions]))
-
-            self.diffs.sort(key=lambda x: x.position)  # type: ignore
+            self.diffs.sort(
+                key=lambda x: (
+                    x.position[0] if isinstance(x.position, tuple) else x.position
+                )
+            )
             to_exclude = []
             for i, d in enumerate(self.diffs):
-                if isinstance(d, RandomDeletion):
-                    _r1 = range(d.position, d.position + d.get_size())
+                if isinstance(d, MotifDeletion):
+                    _r1 = range(d.position[0], d.position[1])
 
                     for _r2 in forbidden_regions:
                         if _r1.start < _r2.stop and _r1.stop > _r2.start:
@@ -129,26 +140,29 @@ def create_motif_grammar(
                 seq (str): Original sequence
                 r (RandomSource): Random source generator
             """
-
-            self.diffs.sort(key=lambda x: x.position)  # type: ignore
+            self.diffs.sort(
+                key=lambda x: (
+                    x.position[0] if isinstance(x.position, tuple) else x.position
+                )
+            )
             _diffs = self.diffs.copy()
 
             ranges = []
             for d in _diffs:
-                if isinstance(d, SNV) and d.is_redundant(seq):
+                if isinstance(d, MotifSNV) and d.is_redundant(seq):
                     self.diffs.remove(d)
                     continue
 
-                if isinstance(d, RandomDeletion):
+                if isinstance(d, MotifDeletion):
                     current_r = [
                         1,
-                        d.position,
-                        d.position + d.get_size(),
+                        d.position[0],
+                        d.position[1],
                         d.get_size(),
                         str(d),
                     ]
 
-                elif isinstance(d, (RandomInsertion, SNV)):
+                elif isinstance(d, (MotifInsertion, MotifSNV)):
                     current_r = [1, d.position, d.position + 1, d.get_size(), str(d)]
 
                 else:
@@ -164,7 +178,7 @@ def create_motif_grammar(
                 _df = pd.DataFrame(ranges, columns=cols)
                 _df["id"] = _df.index
                 gr = pr.PyRanges(_df)
-
+          
                 to_keep = (
                     gr.cluster(slack=-1)
                     .as_df()
@@ -195,7 +209,7 @@ def create_motif_grammar(
                     any(
                         p in to_exclude
                         for p in [new_pos, new_pos + _diff_unit.get_size()]  # type: ignore
-                        if isinstance(_diff_unit, RandomDeletion)
+                        if isinstance(_diff_unit, MotifDeletion)
                     )
                     or new_pos in to_exclude
                 )
@@ -230,10 +244,10 @@ def create_motif_grammar(
             for d in self.diffs:
                 seq = d.perturb(seq, position_tracker=tracker)
 
-                if isinstance(d, RandomInsertion):
-                    tracker += d.get_size()
-                elif isinstance(d, RandomDeletion):
+                if isinstance(d, MotifDeletion):
                     tracker -= d.get_size()
+                elif isinstance(d, MotifInsertion):
+                    tracker += d.get_size()
 
                 ss_indexes = d.adjust_index(ss_indexes)
 
@@ -244,8 +258,8 @@ def create_motif_grammar(
             return "|".join([str(d) for d in self.diffs])
 
     @dataclass
-    class SNV(DiffUnit):
-        position: Annotated[int, IntRange(0, seqsize - 1)]
+    class MotifSNV(DiffUnit):
+        position: Annotated[int, IntList(MOTIF_INFO_SNV.position.unique().tolist())]
         nucleotide: Annotated[str, VarRange(NUCLEOTIDES)]
 
         def perturb(self, seq: str, position_tracker: int) -> str:
@@ -265,53 +279,64 @@ def create_motif_grammar(
             return r.choice(nuc)
 
         def sample_new_position(self, r: RandomSource) -> int:
-            return r.randint(0, seqsize - 1)
+            return r.choice(IntList(MOTIF_INFO_SNV.position.unique().tolist()))
 
         def get_size(self) -> int:
             return 1
 
         def __str__(self):
-            return f"SNV[{self.position},{self.nucleotide}]"
+            _info = MOTIF_INFO_SNV[MOTIF_INFO_SNV.position == self.position].iloc[
+                0
+            ]
+            return f"MotifSNV[{self.position},{_info.rbp_name},{_info.ref_nuc}>{self.nucleotide},{_info.location},{_info.distance_to_cassette},{_info.position_in_motif}]"
 
     @dataclass
-    class RandomDeletion(DiffUnit):
-        position: Annotated[int, IntRange(0, seqsize - max_deletion_size)]
-        size: Annotated[int, IntRange(min=1, max=max_deletion_size)]
+    class MotifDeletion(DiffUnit):
+        position: Annotated[tuple, CustomIntListDeletions(MOTIF_INFO_DELS)]
 
         def perturb(self, seq: str, position_tracker: int) -> str:
-            assert self.position + self.size + position_tracker <= len(seq)
+            assert self.position[0] < self.position[1]
+            size = self.position[1] - self.position[0]
+            assert self.position[0] + size + position_tracker <= len(seq)
+
             return (
-                seq[: self.position + position_tracker]
-                + seq[self.position + self.size + position_tracker :]
+                seq[: self.position[0] + position_tracker]
+                + seq[self.position[0] + size + position_tracker :]
             )
 
         def adjust_index(self, ss_indexes: List[list]) -> List[list]:
             _ss_idx = list(itertools.chain(*ss_indexes))
+            size = self.position[1] - self.position[0]
             adj = [
-                ss - self.size if isinstance(ss, int) and self.position < ss else ss
+                ss - size if isinstance(ss, int) and self.position[0] < ss else ss
                 for ss in _ss_idx
             ]
             return [adj[0:2], adj[2:4], adj[4:6]]
 
         def sample_new_position(self, r: RandomSource) -> int:
-            return r.randint(0, seqsize - max_deletion_size)
+            idx = r.randint(0, len(MOTIF_INFO_DELS) - 1)
+            return [MOTIF_INFO_DELS[idx][0], MOTIF_INFO_DELS[idx][1], idx]
 
         def get_size(self) -> int:
-            return self.size
+            return self.position[1] - self.position[0]
 
         def __str__(self):
-            return f"RandomDeletion[{self.position},{self.position + self.size - 1}]"
+            _info = MOTIF_INFO_DELS[self.position[2]]
+            rbps = ">5RBPs" if _info[5][0].count(";") + 1 > 5 else _info[5][0]
+            return f"MotifDeletion[{self.position[0]},{self.position[1] - self.position[0] - 1},{rbps},{_info[2]},{min(_info[3], _info[4])}]"
 
     @dataclass
-    class RandomInsertion(DiffUnit):
-        position: Annotated[int, IntRange(0, seqsize)]
-        nucleotides: Annotated[str, RandomNucleotides(max_size=max_insertion_size)]
+    class MotifInsertion(DiffUnit):
+        position: Annotated[
+            int, IntRangeExcludingSomeValues(0, seqsize - 1, exclude=EXCLUDED_REGIONS)
+        ]
+        nucleotides: Annotated[tuple, CustomIntListInsertions(MOTIF_INFO_INS)]
 
         def perturb(self, seq: str, position_tracker: int) -> str:
             assert self.position + position_tracker <= len(seq)
             return (
                 seq[: self.position + position_tracker]
-                + self.nucleotides
+                + self.nucleotides[1]
                 + seq[self.position + position_tracker :]
             )
 
@@ -331,16 +356,152 @@ def create_motif_grammar(
             return r.randint(0, seqsize)
 
         def get_size(self) -> int:
-            return len(self.nucleotides)
+            return len(self.nucleotides[1])
+
+        def get_location(self) -> str:
+            for loc, _range in LOCATION_MAP.items():
+                if isinstance(_range[1], int) and self.position <= _range[1]:
+                    return loc
+
+        def get_distance_to_cassette(self) -> int:
+            cass = LOCATION_MAP["Exon_cassette"]
+            return min(
+                abs(self.position - cass[0]),
+                abs(self.position - cass[1]),
+            )
 
         def __str__(self):
-            return f"RandomInsertion[{self.position},{self.nucleotides}]"
+            return f"MotifInsertion[{self.position},{self.nucleotides[0]},{self.get_size()},{self.get_location()},{self.get_distance_to_cassette()}]"
 
     return extract_grammar(
         [
-            weight(snv_weight)(SNV),
-            weight(deletion_weight)(RandomDeletion),
-            weight(insertion_weight)(RandomInsertion),
+            weight(kwargs["snv_weight"])(MotifSNV),
+            weight(kwargs["deletion_weight"])(MotifDeletion),
+            weight(kwargs["insertion_weight"])(MotifDeletion),
         ],
         DiffSequence,
     )
+
+
+def _dict_to_df(d: dict) -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "Seq_id": [d["seq_id"]],
+            "Sequence": [d["seq"]],
+            "Splice_site_positions": [
+                ";".join([str(x) for sublist in d["ss_idx"] for x in sublist])
+            ],
+            "Score": [d["score"]],
+            "Delta_score": [0],
+        }
+    )
+
+
+def _structure_motif_info(
+    motif_search_obj: Union[FimoSearch, PlainSearch],
+    seqsize: int,
+    excluded_regions: list,
+    **kwargs,
+) -> pd.DataFrame:
+
+    motif2ins = [[rbp, motifs] for rbp, motifs in motif_search_obj.motifs.items()]
+    motif_hits = motif_search_obj.motif_results
+    motif_intervals = (
+        motif_hits.groupby(
+            [
+                "Start",
+                "End",
+                "location",
+                "distance_to_cassette_acceptor",
+                "distance_to_cassette_donor",
+            ]
+        )
+        .apply(
+            lambda x: [
+                ";".join(x.RBP_name.tolist()),
+                list(set(x.RBP_motif.tolist()))[0],
+            ]
+        )
+        .reset_index()
+        .rename(columns={0: "rbp_info"})
+    )
+
+    per_position_info = pd.concat(motif_intervals.apply(_expand_row, axis=1).tolist())
+    per_position_info_agg = per_position_info.groupby("position").apply(
+        _aggregate_multi_position_info
+    )
+    kwargs["logger"].info(
+        f"{per_position_info_agg.shape[0]}/{seqsize} ({per_position_info_agg.shape[0] / seqsize * 100:.2f}%) positions with motifs"
+    )
+    motif2snv = per_position_info_agg[
+        ~per_position_info_agg.position.isin(excluded_regions)
+    ]
+
+    kwargs["logger"].info(
+        f"{per_position_info_agg.shape[0] - motif2snv.shape[0]} positions with motifs removed due to overlapping with excluded regions."
+    )
+    motif2dels = motif_intervals.values.tolist()
+    return motif2snv, motif2dels, motif2ins
+
+
+def _expand_row(row):
+
+    positions = range(row.Start, row.End)
+    return pd.DataFrame(
+        {
+            "position": positions,
+            "location": [row.location] * len(positions),
+            "distance_to_cassette": min(
+                row.distance_to_cassette_acceptor, row.distance_to_cassette_donor
+            ),
+            "ref_nuc": list(row.rbp_info[1]),
+            "position_in_motif": range(1, len(positions) + 1),
+            "rbp_name": [row.rbp_info[0]] * len(positions),
+            "rbp_motif": [row.rbp_info[1]] * len(positions),
+        }
+    )
+
+
+def _aggregate_multi_position_info(group: pd.DataFrame) -> pd.Series:
+    """Aggregate multiple RBP information at a single position
+
+    Args:
+        group (pd.DataFrame): Motif hits at a single position
+
+    Returns:
+        pd.Series: Aggregated information for the position
+    """
+
+    # If just one motif hit at this position
+    if group.shape[0] == 1:
+        group = group.iloc[0]
+        n_rbps = len(group.rbp_name.split(";"))
+        # Rename the RBP name if there are more than 5 RBPs
+        if n_rbps > 5:
+            group.rbp_name = ">5RBPs"
+        return group
+    else:
+        _pos = group.position.iloc[0]
+        _loc = group.location.iloc[0]
+        _distance = group.distance_to_cassette.iloc[0]
+        _ref_nuc = group.ref_nuc.iloc[0]
+        _motif = group.rbp_motif.iloc[0]
+
+        # If there are multiple motif hits at this position, dont report position and aggregate RBP names
+        rbp_list = group.rbp_name.str.split(";")
+        unique_rbp_names = list(set(name for sublist in rbp_list for name in sublist))
+        if len(unique_rbp_names) > 5:
+            rbp_name = ">5RBPs"
+        else:
+            rbp_name = ";".join(unique_rbp_names)
+        return pd.Series(
+            {
+                "position": _pos,
+                "location": _loc,
+                "distance_to_cassette": _distance,
+                "ref_nuc": _ref_nuc,
+                "position_in_motif": "-",
+                "rbp_name": rbp_name,
+                "rbp_motif": _motif,
+            }
+        )

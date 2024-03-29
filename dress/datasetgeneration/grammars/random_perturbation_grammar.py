@@ -5,6 +5,8 @@ import itertools
 from typing import Annotated, Tuple, Union
 
 import pandas as pd
+from dress.datasetgeneration.grammars.utils import _get_forbidden_zones, _get_location_map
+from dress.datasetgeneration.metahandlers.ints import IntRangeExcludingSomeValues
 from dress.datasetgeneration.metahandlers.strings import RandomNucleotides
 from geneticengine.core.random.sources import RandomSource
 from geneticengine.metahandlers.ints import IntRange
@@ -37,32 +39,43 @@ class DiffUnit(ABC):
     def get_size(self) -> int:
         ...
 
+    def get_location(self, loc_map) -> str:
+        for loc, _range in loc_map.items():
+            if isinstance(_range[1], int) and self.position <= _range[1]:
+                return loc
+
+    def get_distance_to_cassette(self, loc_map) -> int:
+        cass = loc_map["Exon_cassette"]
+        return min(
+            abs(self.position - cass[0]),
+            abs(self.position - cass[1]),
+        )
 
 def create_random_grammar(
-    max_diff_units: int,
-    snv_weight: float,
-    insertion_weight: float,
-    deletion_weight: float,
-    max_insertion_size: int,
-    max_deletion_size: int,
     input_seq: dict,
+    **kwargs
 ) -> Grammar:
-    """Creates a grammar for the original sequence of length seqsize
+    """Creates a grammar for the original sequence
 
     Args:
-        max_diff_units (int): Maximum number of DiffUnits accepted in an individual
-        snv_weight (float): Probability to generate a SNV node from the grammar
-        insertion_weight (float): Probability to generate a RandomInsertion from the grammar
-        deletion_weight (float): Probability to generate a RandomDeletion from the grammar
-        max_insertion_size (int): Maximum size of a random insertion
-        max_deletion_size (int): Maximum size of a random deletion
         input_seq (dict): Info about the input sequence
 
     Returns:
         Grammar: Returns the grammar that specifies the production rules of the language
     """
-
     seqsize = len(input_seq["seq"])
+    max_diff_units = kwargs.get("max_diff_units", 6)
+    max_insertion_size = kwargs.get("max_insertion_size", 5)
+    max_deletion_size = kwargs.get("max_deletion_size", 5)
+    LOCATION_MAP = _get_location_map(input_seq)
+    EXCLUDED_REGIONS = _get_forbidden_zones(
+        input_seq,
+        region_ranges=LOCATION_MAP,
+        acceptor_untouched_range=kwargs.get("acceptor_untouched_range", [-10, 2]),
+        donor_untouched_range=kwargs.get("donor_untouched_range", [-3, 6]),
+        untouched_regions=kwargs.get("untouched_regions", None),
+        model=kwargs.get("model", "spliceai"),
+    )
 
     @dataclass
     class DiffSequence(object):
@@ -153,6 +166,7 @@ def create_random_grammar(
                 return None
 
             elif len(self.diffs) > 1:
+
                 cols = ["Chromosome", "Start", "End", "length", "phen"]
                 _df = pd.DataFrame(ranges, columns=cols)
                 _df["id"] = _df.index
@@ -238,7 +252,7 @@ def create_random_grammar(
 
     @dataclass
     class SNV(DiffUnit):
-        position: Annotated[int, IntRange(0, seqsize - 1)]
+        position: Annotated[int, IntRangeExcludingSomeValues(0, seqsize - 1, exclude=EXCLUDED_REGIONS)]
         nucleotide: Annotated[str, VarRange(NUCLEOTIDES)]
 
         def perturb(self, seq: str, position_tracker: int) -> str:
@@ -264,11 +278,11 @@ def create_random_grammar(
             return 1
 
         def __str__(self):
-            return f"SNV[{self.position},{self.nucleotide}]"
+            return f"SNV[{self.position},{self.nucleotide},{self.get_location(LOCATION_MAP)},{self.get_distance_to_cassette(LOCATION_MAP)}]"
 
     @dataclass
     class RandomDeletion(DiffUnit):
-        position: Annotated[int, IntRange(0, seqsize - max_deletion_size)]
+        position: Annotated[int, IntRangeExcludingSomeValues(0, seqsize - max_deletion_size, exclude=EXCLUDED_REGIONS)]
         size: Annotated[int, IntRange(min=1, max=max_deletion_size)]
 
         def perturb(self, seq: str, position_tracker: int) -> str:
@@ -293,11 +307,11 @@ def create_random_grammar(
             return self.size
 
         def __str__(self):
-            return f"RandomDeletion[{self.position},{self.position + self.size - 1}]"
+            return f"RandomDeletion[{self.position},{self.position + self.size - 1},{self.get_location(LOCATION_MAP)},{self.get_distance_to_cassette(LOCATION_MAP)}]"
 
     @dataclass
     class RandomInsertion(DiffUnit):
-        position: Annotated[int, IntRange(0, seqsize)]
+        position: Annotated[int, IntRangeExcludingSomeValues(0, seqsize, exclude=EXCLUDED_REGIONS)]
         nucleotides: Annotated[str, RandomNucleotides(max_size=max_insertion_size)]
 
         def perturb(self, seq: str, position_tracker: int) -> str:
@@ -325,13 +339,13 @@ def create_random_grammar(
             return len(self.nucleotides)
 
         def __str__(self):
-            return f"RandomInsertion[{self.position},{self.nucleotides}]"
+            return f"RandomInsertion[{self.position},{self.nucleotides},{self.get_location(LOCATION_MAP)},{self.get_distance_to_cassette(LOCATION_MAP)}]"
 
     return extract_grammar(
         [
-            weight(snv_weight)(SNV),
-            weight(deletion_weight)(RandomDeletion),
-            weight(insertion_weight)(RandomInsertion),
+            weight(kwargs['snv_weight'])(SNV),
+            weight(kwargs['deletion_weight'])(RandomDeletion),
+            weight(kwargs['insertion_weight'])(RandomInsertion),
         ],
         DiffSequence,
     )

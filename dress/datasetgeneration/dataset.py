@@ -86,7 +86,7 @@ class Dataset(object):
     @property
     def quality(self):
         return Archive(dataset=self.data).quality
-
+ 
     def _load_from_df(self, df: pd.DataFrame) -> pd.DataFrame:
         """
         Load dataset(s) from a dataframe.
@@ -312,7 +312,7 @@ def structure_dataset(
 
     return dataset1
 
-
+@DeprecationWarning
 def _synthetic2original(df: pd.DataFrame) -> pd.DataFrame:
     """Extracts information of the original sequence
     given a synthetic sequence generated out of it

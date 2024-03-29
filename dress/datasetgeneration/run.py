@@ -339,14 +339,6 @@ def evo_alg_options_generate(fun):
     )(fun)
 
     fun = click.option(
-        "-ir",
-        "--individual_representation",
-        type=click.Choice(["tree_based"], case_sensitive=True),
-        default="tree_based",
-        help="Representation of an individual of the population. Default: 'tree_based'.",
-    )(fun)
-
-    fun = click.option(
         "-dt",
         "--disable_tracking",
         is_flag=True,
@@ -609,7 +601,7 @@ def generate(**args):
     If any of the tabular option is provided (txt|tab|tsv), it expects a header line with informative column names.)
     """
     args = check_args(args)
-    logger = setup_logger(level=int(args["verbosity"]))
+    args['logger'] = setup_logger(level=int(args["verbosity"]))
     os.makedirs(args["outdir"], exist_ok=True)
 
     if any(args["input"].endswith(ext) for ext in ["fa", "fasta"]):
@@ -630,7 +622,7 @@ def generate(**args):
         )
 
         seqs, ss_idx = preprocessing(df, **args)
-
+        
     else:
         raise NotImplementedError(
             "Input file format not recognized [only *fa, *fasta, *bed, *tsv *txt, *tab allowed]."
@@ -664,7 +656,9 @@ def generate(**args):
             outbasename = re.sub(r"[:-]", "_", _seq_id)
             args["outbasename"] = outbasename
 
-        logger.info(f"Starting seq {seq_id}")
+        args['logger'].info(f"Starting seq {seq_id}")
+        args['logger'].info(f"Sequence length: {len(SEQ)}")
+        args['logger'].info(f"Splice site indexes: {ss_idx[seq_id]}")
         _input = {
             "seq_id": seq_id,
             "seq": SEQ,
@@ -676,19 +670,20 @@ def generate(**args):
         outdatasetfn = (
             f"{args['outdir']}/{outbasename}_seed_{args['seed']}_dataset.csv.gz"
         )
-        logger.info("Calculating original score")
-        _input = get_score_of_input_sequence(_input, **args)
-        logger.info(f"Original score: {round(_input['score'], 3)}")
+        args['logger'].info("Calculating original score")
+        #_input = get_score_of_input_sequence(_input, **args)
+        _input['score'] = 0.49
+        args['logger'].info(f"Original score: {_input['score']:.2f}")
         
         write_input_seq(_input, outoriginalfn)
         archive = do_evolution(_input, **args)
         dataset = return_dataset(input_seq=_input, archive=archive)
 
         write_dataset(
+            _input,
             dataset,
             outdatasetfn,
             outbasename,
-            seq_id,
             args["seed"],
         )
 

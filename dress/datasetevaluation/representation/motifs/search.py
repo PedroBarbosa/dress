@@ -45,11 +45,12 @@ class MotifSearch:
         self.min_motif_length = kwargs.get("min_motif_length", 5)
         self.min_nucleotide_probability = kwargs.get("min_nucleotide_probability", 0.15)
         self.skip_raw_motifs_filtering = kwargs.get("skip_raw_motifs_filtering", False)
+        self.skip_location_mapping = kwargs.get("skip_location_mapping", False)
         self.outdir = os.path.join(kwargs["outdir"], "motifs")
         os.makedirs(self.outdir, exist_ok=True)
         self.outbasename = assign_proper_basename(kwargs.get("outbasename"))
 
-        to_flat = False if kwargs["motif_search"] == "biopython" else True
+        to_flat = False if self.motif_search == "biopython" else True
         if self.motif_db in ["rosina2017", "encode2020_RBNS"]:
             self.motifs = self._read_rosina()
 
@@ -64,10 +65,9 @@ class MotifSearch:
 
     def scan(): ...
 
-    def filter_output(self, raw_hits: pd.DataFrame):
+    def filter_raw_output(self, raw_hits: pd.DataFrame) -> pd.DataFrame:
         """
-        Filters motif results and adds additional information
-        if splice sites information is available
+        Filters motif results
 
         Args:
             raw_hits(pd.DataFrame): Results from motif scanning
@@ -78,7 +78,7 @@ class MotifSearch:
         if raw_hits.empty:
             raise ValueError("No motifs found given this experimental setup.")
 
-        self.logger.log("INFO", "Filtering motif results")
+        self.logger.info("Filtering motif results")
 
         if len(raw_hits.Seq_id.unique()) > 50:
             groups = raw_hits.groupby("Seq_id")
@@ -96,8 +96,23 @@ class MotifSearch:
 
         else:
             df = _redundancy_and_density_analysis(raw_hits, self.motif_search, log=True)
+
         self.logger.info("Done. {} hits kept".format(df.shape[0]))
-        self.logger.log("INFO", "Mapping location of motifs")
+        return df
+
+    def add_motif_location(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Adds additional annotations about the motif location
+        in respect to the exon triplet given as input
+
+        Args:
+            df(pd.DataFrame): Results from motif scanning (raw filtered or not)
+
+        Returns:
+            pd.DataFrame: Df with additional information about location and distances
+            to splice sites
+        """
+        self.logger.info("Mapping location of motifs")
 
         def _process_single_sequence(group: pd.DataFrame, dataset: pd.DataFrame):
             seq_id = group.iloc[0].Seq_id
@@ -122,19 +137,77 @@ class MotifSearch:
 
     def tabulate_occurrences(self, write_output: bool = True) -> Tuple[pd.DataFrame]:
         """
-        Generate counts of each motif in tabular format.
-        Rows are sequence IDs, columns are counts for
-        specific RBP motifs.
+        Generate counts of each motif in tabular format as well
+        as a summary of motif gains/losses compared to the original sequence.
+
 
         If 'group' column exist in the main dataset, it is
         added to the output so that further comparisons
         can be performed downstream.
 
         Returns:
-            Tuple(pd.DataFrame): Tuple with two dataframes:
-        one with motif counts per gene (RBP), other with counts
-        for each possible motif within each gene (RBP)
+            Tuple(pd.DataFrame): Tuple with four dataframes:
+                -motif counts per gene (RBP)
+                -motif counts for each possible motif within each gene (RBP)
+                -summary of gains/losses for each RBP
+                -summary of gains/losses for each motif of each RBP
         """
+
+        def _counts_per_rbp(col_to_use: str, all_values: list) -> pd.DataFrame:
+            counts = self.motif_results.pivot_table(
+                index="Seq_id", columns=col_to_use, aggfunc="size", fill_value=0
+            )
+            counts = counts.reindex(columns=all_values, fill_value=0)
+            cols = ["Seq_id", "Score", "Delta_score"]
+            if "group" in self.dataset.columns and self.dataset["group"].nunique() > 1:
+                cols.append("group")
+
+            return pd.merge(
+                counts, self.dataset[cols], how="left", on="Seq_id"
+            )
+
+
+        def _get_gain_loss_summary(df: pd.DataFrame) -> pd.DataFrame:
+                
+            def _get_rbp_count(row: pd.Series): 
+                pos, neg = [], []
+
+                for rbp, c in row[row != 0].items():
+                    if c == 1:
+                        pos.append(f"{rbp}")
+                    elif c == -1:
+                        neg.append(f"{rbp}")
+                    elif c > 1:
+                        pos.append(f"{rbp}_x{c}")
+                    elif c < -1:
+                        neg.append(f"{rbp}_x{abs(c)}")
+                return ';'.join(pos), ';'.join(neg)
+            
+            df_counts = df.copy()
+            df_counts.set_index("Seq_id", inplace=True)
+            rbp_cols = [
+                c
+                for c in df_counts.columns
+                if c not in ["Score", "Delta_score", "group"]
+            ]
+            reference_row = df_counts.iloc[0]
+
+            differences = df_counts[rbp_cols].sub(reference_row[rbp_cols], axis=1).astype(int)
+            n_df = pd.concat([differences[differences > 0].sum(axis=1), 
+                               differences[differences < 0].sum(axis=1).abs()], axis=1).astype(int)
+            n_df.columns = ['N_gained', 'N_lost']
+
+            differences[['RBP_gained', 'RBP_lost']] = differences.apply(_get_rbp_count, axis=1, result_type='expand')
+            res_df = n_df.merge(differences[['RBP_gained', 'RBP_lost']], on='Seq_id')
+
+            merge_cols = ["Score", "Delta_score"]
+            if "group" in df_counts.columns:
+                merge_cols.append("group")
+            return res_df.merge(
+                df_counts[merge_cols], left_index=True, right_index=True
+            ).reset_index()
+
+        # List all possible rbps
         all_rbps = list(self.motifs.keys())
         all_rbps_detailed = []
 
@@ -153,54 +226,19 @@ class MotifSearch:
                 for motif in uniq_flat_motifs:
                     all_rbps_detailed.append(rbp + "_" + motif)
 
-        # Count ocurrences per RBP and per individual RBP motif
-        rbp_counts = (
-            self.motif_results.groupby(["Seq_id", "RBP_name"])
-            .size()
-            .unstack(fill_value=0)
-        )
-        rbp_counts_detailed = (
-            self.motif_results.groupby(["Seq_id", "RBP_name_motif"])
-            .size()
-            .unstack(fill_value=0)
-        )
-
-        # Fill motif df with absent occurrences
-        absent_rbps_hits = [x for x in all_rbps if x not in list(rbp_counts)]
-        absent_rbps_detailed_hits = [
-            x for x in all_rbps_detailed if x not in list(rbp_counts_detailed)
-        ]
-
-        d_rbps1 = pd.concat(
-            [pd.DataFrame(dict.fromkeys(absent_rbps_hits, 0), index=[0])]
-            * rbp_counts.shape[0],
-            ignore_index=True,
-        ).set_index(rbp_counts.index)
-
-        d_rbps2 = pd.concat(
-            [pd.DataFrame(dict.fromkeys(absent_rbps_detailed_hits, 0), index=[0])]
-            * rbp_counts_detailed.shape[0],
-            ignore_index=True,
-        ).set_index(rbp_counts_detailed.index)
-
-        rbp_counts = pd.concat([rbp_counts, d_rbps1], axis=1).sort_index(axis=1)
-        rbp_counts_detailed = pd.concat(
-            [rbp_counts_detailed, d_rbps2], axis=1
-        ).sort_index(axis=1)
-
-        cols = ["Seq_id", "Score", "Delta_score"]
-        # If PairedDataset, last column is the group
-        if "group" in self.dataset.columns and self.dataset.group.nunique() > 1:
-            cols.append("group")
-
-        rbp_counts = pd.merge(rbp_counts, self.dataset[cols], how="left", on="Seq_id")
-
-        rbp_counts_detailed = pd.merge(
-            rbp_counts_detailed,
-            self.dataset[cols],
-            how="left",
-            on="Seq_id",
-        )
+        # Count occurrences per RBP and per individual RBP motif
+        rbp_counts_list = []
+        for col, all_values in zip(
+            ["RBP_name", "RBP_name_motif"], [all_rbps, all_rbps_detailed]
+        ):
+            rbp_counts_list.append(_counts_per_rbp(col, all_values))
+     
+        # Generate summary of motif gains/losses
+        summary_list = []
+        import time
+        start = time.time()
+        for counts_df in rbp_counts_list:
+            summary_list.append(_get_gain_loss_summary(counts_df))
 
         if write_output:
             self.motif_results.to_csv(
@@ -209,20 +247,22 @@ class MotifSearch:
                 sep="\t",
                 index=False,
             )
-            rbp_counts.to_csv(
-                self.outdir + "/{}RBP_COUNTS.tsv.gz".format(self.outbasename),
-                compression="gzip",
-                sep="\t",
-                index=False,
-            )
-            rbp_counts_detailed.to_csv(
-                self.outdir + "/{}MOTIF_COUNTS.tsv.gz".format(self.outbasename),
-                compression="gzip",
-                sep="\t",
-                index=False,
-            )
+            # Motif counts
+            for key, df in {
+                "RBP_COUNTS": rbp_counts_list[0],
+                "MOTIF_COUNTS": rbp_counts_list[1],
+                "RBP_SUMMARY": summary_list[0],
+                "MOTIF_SUMMARY": summary_list[1],
+            }.items():
+     
+                df.to_csv(
+                    self.outdir + f"/{self.outbasename}{key}.tsv.gz",
+                    compression="gzip",
+                    sep="\t",
+                    index=False,
+                )
 
-        return rbp_counts, rbp_counts_detailed
+        return rbp_counts_list[0], rbp_counts_list[1], summary_list[0], summary_list[1]
 
     def _read_rosina(self) -> dict:
         """
@@ -314,6 +354,10 @@ class MotifSearch:
                 "db/cisBP_RNA/cisBP_RNA_PWMs_database.txt",
             )
 
+        elif os.path.isfile(self.motif_db):
+            self.logger.info("Custom PWM file given. It must be in MEME format")
+            db = self.motif_db
+
         # Get PWMs per RBP represented as np.arrays
         if file_format == "meme":
             self.logger.log(
@@ -377,15 +421,18 @@ class MotifSearch:
 
         if self.subset_rbps:
             if isinstance(self.subset_rbps, str):
+
                 if self.subset_rbps in RBP_SUBSETS.keys():
                     self.subset_rbps = RBP_SUBSETS[self.subset_rbps]
 
-                elif self.subset_rbps not in self.motifs.keys():
-                    raise ValueError(
-                        "RBP '{}' not found in the {} database.".format(
-                            self.subset_rbps, self.motif_db
+                else:
+                    if self.subset_rbps not in self.motifs.keys():
+                        raise ValueError(
+                            "RBP '{}' not found in the {} database.".format(
+                                self.subset_rbps, self.motif_db
+                            )
                         )
-                    )
+                    self.subset_rbps = [self.subset_rbps]
 
             absent = [x for x in self.subset_rbps if x not in self.motifs.keys()]
 
@@ -422,6 +469,7 @@ class PlainSearch(MotifSearch):
 
     def __init__(self, dataset: pd.DataFrame, subset_rbps: Union[str, list], **kwargs):
         super().__init__(dataset=dataset, subset_rbps=subset_rbps, **kwargs)
+        assert self.motif_search == "plain"
         self.motif_results = self.scan()
 
     def scan(self):
@@ -450,10 +498,10 @@ class PlainSearch(MotifSearch):
             f"Searching motifs in {self.dataset.shape[0]} sequences using a plain search",
         )
 
-        def _scan(row: pd.Series):
+        def _scan(row: pd.Series, motifs: dict):
             res = []
             # for each RBP
-            for rbp_name, _motifs in self.motifs.items():
+            for rbp_name, _motifs in motifs.items():
                 # matches are 0-based
                 matches = [[_ for _ in re.finditer(m, row.Sequence)] for m in _motifs]
 
@@ -478,10 +526,10 @@ class PlainSearch(MotifSearch):
 
         if self.dataset.shape[0] > 10:
             pandarallel.initialize(progress_bar=True, verbose=0)
-            res = self.dataset.parallel_apply(_scan, axis=1)
+            res = self.dataset.parallel_apply(_scan, motifs=self.motifs, axis=1)
             print()
         else:
-            res = self.dataset.apply(_scan, axis=1)
+            res = self.dataset.apply(_scan, motifs=self.motifs, axis=1)
 
         res = list(itertools.chain(*res))
         df = pd.DataFrame.from_records(
@@ -497,10 +545,13 @@ class PlainSearch(MotifSearch):
         )
 
         self.logger.log("INFO", "Done. {} hits found".format(df.shape[0]))
-        if self.skip_raw_motifs_filtering:
-            return df
+        if not self.skip_raw_motifs_filtering:
+            df = self.filter_raw_output(df)
 
-        return self.filter_output(df)
+        if not self.skip_location_mapping:
+            df = self.add_motif_location(df)
+
+        return df
 
 
 class FimoSearch(MotifSearch):
@@ -518,16 +569,14 @@ class FimoSearch(MotifSearch):
                 - qvalue_threshold (float): only keep motif matches below q-value threshold. Default: `None`
         """
         super().__init__(dataset, subset_rbps=subset_rbps, **kwargs)
-
+        assert self.motif_search == "fimo"
         assert self.motif_db not in [
             "rosina2017",
             "encode2020_RBNS",
         ], f"{self.motif_db} motif database allowed only when '--motif_search is 'plain'"
 
-        self.pvalue_threshold = kwargs.get(
-            "pvalue_threshold",
-        )
-        self.qvalue_threshold = kwargs.get("qvalue_threshold")
+        self.pvalue_threshold = kwargs.get("pvalue_threshold", 0.0001)
+        self.qvalue_threshold = kwargs.get("qvalue_threshold", None)
         self.motif_results = self.scan()
 
     def scan(self):
@@ -567,15 +616,13 @@ class FimoSearch(MotifSearch):
             add_cmd = list(chain(*zip(_aux, subset_RB)))
             base_cmd.extend(add_cmd)
 
-        def _scan(row: pd.Series):
+        def _scan(row: pd.Series, outdir: str, motif_db_file: str):
             fasta = row.fasta
 
-            fimo_outdir = os.path.join(
-                os.path.join(self.outdir, "fimo"), Path(fasta).stem
-            )
+            fimo_outdir = os.path.join(os.path.join(outdir, "fimo"), Path(fasta).stem)
 
             os.makedirs(fimo_outdir, exist_ok=True)
-            fimo_cmd = base_cmd + ["--oc", fimo_outdir, self.motif_db_file, fasta]
+            fimo_cmd = base_cmd + ["--oc", fimo_outdir, motif_db_file, fasta]
 
             _p = subprocess.run(
                 fimo_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
@@ -616,39 +663,41 @@ class FimoSearch(MotifSearch):
             except pd.errors.EmptyDataError:
                 return
 
-        self.logger.log(
-            "DEBUG", "Base command to run FIMO: {}".format(" ".join(base_cmd))
+        self.logger.debug("Base command to run FIMO: {}".format(" ".join(base_cmd))
         )
 
         fimo_outdir = self.outdir + "/fimo"
         os.makedirs(fimo_outdir, exist_ok=True)
 
         if self.dataset.shape[0] > 10:
-            self.logger.log(
-                "INFO", "Writing sequences to multiple files to parallelize FIMO search"
+            self.logger.info(
+                "Writing sequences to multiple files to parallelize FIMO search"
             )
             fasta_files = _dataset_to_fasta(
-                self.dataset, outdir=fimo_outdir, chunk_size=100
+                self.dataset, outdir=fimo_outdir, chunk_size=50
             )
             fasta_df = pd.DataFrame(fasta_files, columns=["fasta"])
-            self.logger.log("INFO", "Running..")
+            self.logger.info("Running..")
             pandarallel.initialize(progress_bar=True, use_memory_fs=False, verbose=0)
-            res = fasta_df.parallel_apply(_scan, axis=1)
+            res = fasta_df.parallel_apply(
+                _scan, outdir=self.outdir, motif_db_file=self.motif_db_file, axis=1
+            )
             print()
         else:
             fasta_files = _dataset_to_fasta(self.dataset, fimo_outdir)
             fasta_df = pd.DataFrame([fasta_files], columns=["fasta"])
-            res = fasta_df.apply(_scan, axis=1)
+            res = fasta_df.apply(
+                _scan, outdir=self.outdir, motif_db_file=self.motif_db_file, axis=1
+            )
 
         res = res.dropna()
         if res.empty:
-            self.logger.log(
-                "INFO",
+            self.logger.warning(
                 "No motif hits found using FIMO against {} database".format(
                     self.motif_db
                 ),
             )
-            exit(1)
+            raise ValueError
 
         df = pd.concat(list(res))
         df["RBP_name_motif"] = df.RBP_name + "_" + df.RBP_motif
@@ -664,8 +713,7 @@ class FimoSearch(MotifSearch):
         _n = df.shape[0]
         df = df[df.RBP_name_motif.isin(all_possible_features)]
 
-        self.logger.log(
-            "DEBUG",
+        self.logger.debug(
             "Number of hits removed due to the minimum nucleotide probability "
             "threshold set ({}): {}".format(
                 self.min_nucleotide_probability, _n - df.shape[0]
@@ -677,8 +725,7 @@ class FimoSearch(MotifSearch):
         if self.qvalue_threshold is not None:
 
             df = df[df["q-value"] <= self.qvalue_threshold]
-            self.logger.log(
-                "DEBUG",
+            self.logger.debug(
                 "Number of hits removed due to the q-value "
                 "threshold set ({}): {}".format(
                     self.qvalue_threshold, _n - df.shape[0]
@@ -686,11 +733,11 @@ class FimoSearch(MotifSearch):
             )
 
             if df.empty:
-                self.logger.log(
-                    "INFO",
+                self.logger.warning(
                     'No remaining FIMO hits after applying "qvalue_threshold"',
                 )
-                exit(1)
+                raise ValueError
+            
         df.Start -= 1
 
         if isinstance(fasta_files, list):
@@ -701,10 +748,13 @@ class FimoSearch(MotifSearch):
         df = df.drop_duplicates(["Seq_id", "RBP_name", "Start", "End"], keep="first")
         self.logger.log("INFO", "Done. {} hits found".format(df.shape[0]))
 
-        if self.skip_raw_motifs_filtering:
-            return df
+        if not self.skip_raw_motifs_filtering:
+            df = self.filter_raw_output(df)
 
-        return self.filter_output(df)
+        if not self.skip_location_mapping:
+            df = self.add_motif_location(df)
+
+        return df
 
 
 class BiopythonSearch(MotifSearch):
@@ -723,10 +773,10 @@ class BiopythonSearch(MotifSearch):
             with high log-odds scores against a motif. Default: `3`
         """
         super().__init__(dataset, subset_rbps=subset_rbps, **kwargs)
-
+        assert self.motif_search == "biopython"
         self.motifs_uniq = _get_unique_pwms(self.motifs)
-        self.pssm_threshold = kwargs["pssm_threshold"]
-        self.estimate_best_thr = kwargs["just_estimate_pssm_threshold"]
+        self.pssm_threshold = kwargs.get("pssm_threshold", 3)
+        self.estimate_best_thr = kwargs.get("just_estimate_pssm_threshold", False)
 
         if self.estimate_best_thr:
             if not isinstance(self.subset_rbps, str):
@@ -753,7 +803,11 @@ class BiopythonSearch(MotifSearch):
 
         self.logger.log("INFO", "Scanning motifs using biopython")
 
-        def _scan(row: pd.Series, just_estimate_thrsh: bool = False) -> list:
+        def _scan(row: pd.Series, **kwargs) -> list:
+            motifs_uniq = kwargs["motifs_uniq"]
+            just_estimate_thrsh = kwargs["just_estimate_thrsh"]
+            min_nuc_prob = kwargs["min_nucleotide_probability"]
+            pssm_threshold = kwargs["pssm_threshold"]
             res = []
             id = row.Seq_id
             seq = row.Sequence
@@ -765,15 +819,11 @@ class BiopythonSearch(MotifSearch):
                 "T": seq.count("T") / _len,
             }
 
-            for rbp_name, pwms in self.motifs_uniq.items():
+            for rbp_name, pwms in motifs_uniq.items():
                 for pwm in pwms:
-                    pwm_as_str = _pwm_to_ambiguous(
-                        pwm, min_probability=self.min_nucleotide_probability
-                    )
+                    pwm_as_str = _pwm_to_ambiguous(pwm, min_probability=min_nuc_prob)
 
-                    mt = _pwm_to_unambiguous(
-                        pwm, min_probabibility=self.min_nucleotide_probability
-                    )
+                    mt = _pwm_to_unambiguous(pwm, min_probabibility=min_nuc_prob)
 
                     biopy_m = motifs.create([Seq(m) for m in mt])
 
@@ -791,14 +841,14 @@ class BiopythonSearch(MotifSearch):
                         res.append(distribution.threshold_patser())
                         continue
 
-                    if self.pssm_threshold < 0:
+                    if pssm_threshold < 0:
                         distribution = pssm.distribution(
                             background=background_dist, precision=10 * 3
                         )
-                        self.pssm_threshold = round(distribution.threshold_patser(), 5)
+                        pssm_threshold = round(distribution.threshold_patser(), 5)
 
                     scored = pssm.calculate(seq)
-                    positions = np.argwhere(scored > self.pssm_threshold).flatten()
+                    positions = np.argwhere(scored > pssm_threshold).flatten()
                     scores = scored[positions]
 
                     if positions.any():
@@ -813,14 +863,21 @@ class BiopythonSearch(MotifSearch):
                                     _pos + len(biopy_m),
                                     rbp_name + "_" + pwm_as_str,
                                     _score,
-                                    self.pssm_threshold,
+                                    pssm_threshold,
                                 ]
                             )
 
             return res
 
+        kwargs = {
+            "motifs_uniq": self.motifs_uniq,
+            "min_nucleotide_probability": self.min_nucleotide_probability,
+            "just_estimate_thrsh": self.estimate_best_thr,
+            "pssm_threshold": self.pssm_threshold,
+        }
+
         if self.estimate_best_thr:
-            res = self.dataset.head(1).apply(_scan, just_estimate_thrsh=True, axis=1)
+            res = self.dataset.head(1).apply(_scan, **kwargs, axis=1)
             res = list(res.explode())
 
             self.logger.log(
@@ -830,14 +887,14 @@ class BiopythonSearch(MotifSearch):
                     len(res), self.motif_db, self.subset_rbps, round(np.median(res), 5)
                 ),
             )
-            exit(1)
+            raise ValueError
 
         if self.dataset.shape[0] > 10:
             pandarallel.initialize(progress_bar=True, use_memory_fs=False, verbose=0)
-            res = self.dataset.parallel_apply(_scan, axis=1)
+            res = self.dataset.parallel_apply(_scan, **kwargs, axis=1)
             print()
         else:
-            res = self.dataset.apply(_scan, axis=1)
+            res = self.dataset.apply(_scan, **kwargs, axis=1)
 
         self.logger.log("INFO", "Aggregating results")
 
@@ -864,7 +921,10 @@ class BiopythonSearch(MotifSearch):
         df.round({"PSSM_score": 4})
         self.logger.log("INFO", "Done. {} hits found".format(df.shape[0]))
 
-        if self.skip_raw_motifs_filtering:
-            return df
+        if not self.skip_raw_motifs_filtering:
+            df = self.filter_raw_output(df)
 
-        return self.filter_output(df)
+        if not self.skip_location_mapping:
+            df = self.add_motif_location(df)
+
+        return df

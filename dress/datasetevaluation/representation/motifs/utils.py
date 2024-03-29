@@ -159,7 +159,6 @@ def _get_unique_pwms(all_pwms: dict) -> dict:
         hashable_set = set(hashable_list)
         unique_arr_list = [list_pwms[hashable_list.index(h)] for h in hashable_set]
         motifs_unique[gene] = unique_arr_list
-
     return motifs_unique
 
 
@@ -289,12 +288,10 @@ def _redundancy_and_density_analysis(
     _df = df.copy()
     _df = _df.rename(columns=rename_pr)
 
-    if log:
-        logger.info("Self contained hits analysis..")
+    logger.debug("Self contained hits analysis..")
     _df = _remove_self_contained(pr.PyRanges(_df), scan_method)
 
-    if log:
-        logger.info("Nearby hits analysis")
+    logger.debug("Nearby hits analysis")
     _df = _tag_high_density(_df)
 
     # logger.info("Aggregating duplicate motifs across multiple RBPs")
@@ -669,7 +666,7 @@ def _get_loc_of_motif(_info: pd.DataFrame, _dataset: pd.DataFrame):
 
             # There are fully contained
             if fully.__len__() > 0:
-                fully.location = fully.Name + "_fully_contained"
+                fully.location = fully.Name
                 final_to_concat.append(fully)
 
                 # There are some partial
@@ -702,8 +699,7 @@ def _get_loc_of_motif(_info: pd.DataFrame, _dataset: pd.DataFrame):
 
                 if full_span.__len__() > 0:
 
-                    full_span.location = full_span.Name + "_fully_contained"
-                    # full_span.location = full_span.Name + "_full_span"
+                    full_span.location = full_span.Name + "_full_span"
                     final_to_concat.append(full_span)
 
                     # There are some partial that are not full span
@@ -722,10 +718,10 @@ def _get_loc_of_motif(_info: pd.DataFrame, _dataset: pd.DataFrame):
 
                 # MOTIFS NEAR/SPANNING ACCEPTORS
                 acceptor_region = partial[
-                    (partial.End < partial.End_b)
+                    (partial.Start < partial.Start_b)
                     | (partial.Start - partial.Start_b < 2)
                 ]
-
+     
                 if acceptor_region.__len__() > 0:
                     acceptor_region.location = acceptor_region.Name + "_acceptor_region"
                     final_to_concat.append(acceptor_region)

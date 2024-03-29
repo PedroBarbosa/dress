@@ -24,24 +24,22 @@ def write_input_seq(input: dict, outfile: str):
 
 
 def write_dataset(
-    dataset: list, outfile: str, outbasename: str, seq_id: str, seed: int
+    input: dict, dataset: list, outfile: str, outbasename: str, seed: int
 ):
-    out_generated = []
+    out_generated = [
+        [
+            outbasename,
+            seed,
+            input["seq_id"],
+            "original",
+            input["seq"],
+            ";".join([str(x) for sublist in input["ss_idx"] for x in sublist]),
+            input["score"],
+            0,
+        ]
+    ]
 
-    if not dataset:
-        out_generated.append(
-            [
-                outbasename,
-                seed,
-                seq_id,
-                None,
-                None,
-                None,
-                None,
-                None,
-            ]
-        )
-    else:
+    if dataset:
         for ind in dataset:
             phenotype, seq, _ss_idx, pred, pred_diff = (
                 ind[0],
@@ -54,7 +52,7 @@ def write_dataset(
                 [
                     outbasename,
                     seed,
-                    seq_id,
+                    input["seq_id"],
                     phenotype,
                     seq,
                     _ss_idx,
@@ -147,16 +145,18 @@ def open_fasta(fasta: Union[str, Fasta], cache_dir: str) -> Fasta:
             raise ValueError("Make sure you provide an uncompressed fasta for pyfaidx")
 
         return Fasta(fasta)
-    
+
     else:
         default_path = os.path.join(cache_dir, "GRCh38.primary_assembly.genome.fa")
         try:
             open(default_path).readline()
         except FileNotFoundError:
-            raise FileNotFoundError("Fasta file was not originally provided. "
-                                    "Tried to look instead into the cache directory for the default filename "
-                                    f"{default_path}, but it was not found. "
-                                    "Please provide a valid fasta file via the --genome option.")
+            raise FileNotFoundError(
+                "Fasta file was not originally provided. "
+                "Tried to look instead into the cache directory for the default filename "
+                f"{default_path}, but it was not found. "
+                "Please provide a valid fasta file via the --genome option."
+            )
         return Fasta(default_path)
     return None
 

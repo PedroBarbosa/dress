@@ -8,6 +8,7 @@ from dress.datasetgeneration.custom_steps import custom_mutation_operator
 from dress.datasetgeneration.custom_callbacks import (
     ArchiveCSVCallback,
     DynamicGeneticStepCallback,
+    PrintBestCallbackWithGeneration,
     PruneArchiveCallback,
 )
 from dress.datasetgeneration.custom_fitness import (
@@ -133,11 +134,19 @@ def _get_forbidden_zone(
         for region in untouched_regions:
             try:
                 _range = region_ranges[region]
+                if all(x == "<NA>" for x in _range):
+                    continue
+                elif _range[0] == "<NA>":
+                    _range[0] = 0
+                elif _range[1] == "<NA>":
+                    _range[1] = len(seq) - 1
+                    
             except KeyError:
                 raise ValueError(
                     f"Region {region} not recognized. "
                     f"Choose from {list(region_ranges.keys())}"
                 )
+
             out.append(range(_range[0], _range[1] + 1))
 
     return out
@@ -340,13 +349,6 @@ def configureEvolution(
             fitness_function=fitness_function_placeholder,
         )
 
-    # Individual representation
-    if kwargs["individual_representation"] == "tree_based":
-        representation = TreeBasedRepresentation(grammar, max_depth=3)
-
-    # elif kwargs["individual_representation"] == "grammatical":
-    #     representation = GrammaticalEvolutionRepresentation(grammar, max_depth=3)
-
     else:
         raise NotImplementedError(
             f"Representation {kwargs['representation']} not implemented"
@@ -377,6 +379,8 @@ def configureEvolution(
     # CrossoverStep
     crossover_step = GenericCrossoverStep(kwargs["crossover_probability"])
 
+
+    representation = TreeBasedRepresentation(grammar, max_depth=3)
     phenotypeCorrector = configPhenotypeCorrector(
         correct_phenotypes=correct_phenotypes,
         input_seq=input_seq,
@@ -496,7 +500,7 @@ def configureEvolution(
         stopping_criterium = AnyOfStoppingCriterium(all_stopping_criteria)
 
     # Callbacks
-    callbacks: List[Callback] = []  # PrintBestCallbackWithGeneration()
+    callbacks: List[Callback] = [PrintBestCallbackWithGeneration()]
 
     if len(kwargs["operators_weight"]) > 1:
         update_at = sorted(kwargs["update_weights_at_generation"])
@@ -569,6 +573,7 @@ def configureEvolution(
         )
 
     if os.path.isdir(kwargs["outdir"]):
+        kwargs.pop('logger')
         dump_yaml(os.path.join(kwargs["outdir"], "args_used.yaml"), **kwargs)
 
     return (

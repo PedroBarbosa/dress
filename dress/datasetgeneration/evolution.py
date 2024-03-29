@@ -1,5 +1,3 @@
-from loguru import logger
-
 from dress.datasetgeneration.grammars.pwm_perturbation_grammar import (
     create_motif_grammar,
 )
@@ -66,14 +64,10 @@ def do_evolution(
     """
     if kwargs["which_grammar"] == "random":
         grammar = create_random_grammar(
-            max_diff_units=kwargs["max_diff_units"],
-            snv_weight=kwargs["snv_weight"],
-            insertion_weight=kwargs["insertion_weight"],
-            deletion_weight=kwargs["deletion_weight"],
-            max_insertion_size=kwargs["max_insertion_size"],
-            max_deletion_size=kwargs["max_deletion_size"],
             input_seq=input_seq,
+            **kwargs
         )
+        
     elif kwargs["which_grammar"] == "motif_based":
         grammar = create_motif_grammar(
             input_seq=input_seq,
@@ -85,6 +79,6 @@ def do_evolution(
         **kwargs,
     )
 
-    logger.info("Evolution started")
+    kwargs['logger'].info("Evolution started")
     alg.evolve()
     return archive

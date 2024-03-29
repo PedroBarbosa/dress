@@ -71,7 +71,6 @@ GENERATE_GROUP_OPTIONS = {
                 "--custom_mutation_operator_weight",
                 "--prune_archive_individuals",
                 "--prune_at_generations",
-                "--individual_representation",
             ],
         },
         {

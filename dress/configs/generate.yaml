@@ -26,8 +26,6 @@ generate:
     prune_at_generations: null
   population:
     population_size: 1000
-  individual:
-    individual_representation: 'tree_based'
   selection:
     selection_method: 'tournament'
     tournament_size: 5
