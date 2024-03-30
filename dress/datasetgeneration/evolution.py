@@ -63,19 +63,21 @@ def do_evolution(
 
     """
     if kwargs["which_grammar"] == "random":
-        grammar = create_random_grammar(
+        grammar, excluded_r = create_random_grammar(
             input_seq=input_seq,
             **kwargs
         )
         
     elif kwargs["which_grammar"] == "motif_based":
-        grammar = create_motif_grammar(
+        grammar, excluded_r = create_motif_grammar(
             input_seq=input_seq,
             **kwargs,
         )
+
     alg, archive = configureEvolution(
         input_seq=input_seq,
         grammar=grammar,
+        excluded_regions=excluded_r,
         **kwargs,
     )
 

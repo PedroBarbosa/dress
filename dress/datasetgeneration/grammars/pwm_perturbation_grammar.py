@@ -10,6 +10,7 @@ from dress.datasetevaluation.representation.motifs.search import FimoSearch, Pla
 from dress.datasetgeneration.metahandlers.ints import (
     CustomIntListDeletions,
     CustomIntListInsertions,
+    IntListExcludingSomeValues,
     IntRangeExcludingSomeValues,
 )
 from dress.datasetgeneration.grammars.utils import (
@@ -50,7 +51,7 @@ class DiffUnit(ABC):
 def create_motif_grammar(
     input_seq: dict,
     **kwargs,
-) -> Grammar:
+) -> Tuple[Grammar, List[range]]:
     """Creates a grammar for the original sequence
 
     Args:
@@ -58,11 +59,12 @@ def create_motif_grammar(
 
     Returns:
         Grammar: Returns the grammar that specifies the production rules of the language
+        List[range]: List of ranges that cannot be perturbed
     """
 
     max_diff_units = kwargs.get("max_diff_units", 6)
     seqsize = len(input_seq["seq"])
-    motif_searcher = MOTIF_SEARCH_OPTIONS.get(kwargs.get("motif_search"))
+    motif_searcher = MOTIF_SEARCH_OPTIONS.get(kwargs.get("motif_search", "fimo"))
     motif_search = motif_searcher(dataset=_dict_to_df(input_seq), **kwargs)
 
     LOCATION_MAP = _get_location_map(input_seq)
@@ -259,7 +261,7 @@ def create_motif_grammar(
 
     @dataclass
     class MotifSNV(DiffUnit):
-        position: Annotated[int, IntList(MOTIF_INFO_SNV.position.unique().tolist())]
+        position: Annotated[int, IntListExcludingSomeValues(MOTIF_INFO_SNV.position.unique().tolist(), exclude=EXCLUDED_REGIONS)]
         nucleotide: Annotated[str, VarRange(NUCLEOTIDES)]
 
         def perturb(self, seq: str, position_tracker: int) -> str:
@@ -306,9 +308,9 @@ def create_motif_grammar(
 
         def adjust_index(self, ss_indexes: List[list]) -> List[list]:
             _ss_idx = list(itertools.chain(*ss_indexes))
-            size = self.position[1] - self.position[0]
+            
             adj = [
-                ss - size if isinstance(ss, int) and self.position[0] < ss else ss
+                ss - self.get_size() if isinstance(ss, int) and self.position[0] < ss else ss
                 for ss in _ss_idx
             ]
             return [adj[0:2], adj[2:4], adj[4:6]]
@@ -323,7 +325,7 @@ def create_motif_grammar(
         def __str__(self):
             _info = MOTIF_INFO_DELS[self.position[2]]
             rbps = ">5RBPs" if _info[5][0].count(";") + 1 > 5 else _info[5][0]
-            return f"MotifDeletion[{self.position[0]},{self.position[1] - self.position[0] - 1},{rbps},{_info[2]},{min(_info[3], _info[4])}]"
+            return f"MotifDeletion[{self.position[0]},{rbps},{self.position[1] - self.position[0]},{_info[2]},{min(_info[3], _info[4])}]"
 
     @dataclass
     class MotifInsertion(DiffUnit):
@@ -377,10 +379,10 @@ def create_motif_grammar(
         [
             weight(kwargs["snv_weight"])(MotifSNV),
             weight(kwargs["deletion_weight"])(MotifDeletion),
-            weight(kwargs["insertion_weight"])(MotifDeletion),
+            weight(kwargs["insertion_weight"])(MotifInsertion),
         ],
         DiffSequence,
-    )
+    ), EXCLUDED_REGIONS
 
 
 def _dict_to_df(d: dict) -> pd.DataFrame:
@@ -403,7 +405,7 @@ def _structure_motif_info(
     excluded_regions: list,
     **kwargs,
 ) -> pd.DataFrame:
-
+    _excluded_r = set(itertools.chain(*[x for x in excluded_regions]))
     motif2ins = [[rbp, motifs] for rbp, motifs in motif_search_obj.motifs.items()]
     motif_hits = motif_search_obj.motif_results
     motif_intervals = (
@@ -434,13 +436,14 @@ def _structure_motif_info(
         f"{per_position_info_agg.shape[0]}/{seqsize} ({per_position_info_agg.shape[0] / seqsize * 100:.2f}%) positions with motifs"
     )
     motif2snv = per_position_info_agg[
-        ~per_position_info_agg.position.isin(excluded_regions)
+        ~per_position_info_agg.position.isin(_excluded_r)
     ]
 
     kwargs["logger"].info(
-        f"{per_position_info_agg.shape[0] - motif2snv.shape[0]} positions with motifs removed due to overlapping with excluded regions."
+        f"{per_position_info_agg.shape[0] - motif2snv.shape[0]} positions with motifs will not be used due to overlapping with excluded regions."
     )
     motif2dels = motif_intervals.values.tolist()
+    motif2dels = [el for el in motif2dels if not any(x in _excluded_r for x in range(el[0], el[1]))]   
     return motif2snv, motif2dels, motif2ins
 
 

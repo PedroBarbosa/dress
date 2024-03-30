@@ -671,7 +671,7 @@ def generate(**args):
         )
         args['logger'].info("Calculating original score")
         _input = get_score_of_input_sequence(_input, **args)
-        args['logger'].info(f"Original score: {_input['score']:.2f}")
+        args['logger'].info(f"Original score: {_input['score']:.4f}")
         
         write_input_seq(_input, outoriginalfn)
         archive = do_evolution(_input, **args)

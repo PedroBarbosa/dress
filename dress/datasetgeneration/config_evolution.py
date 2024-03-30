@@ -60,98 +60,6 @@ from geneticengine.core.representations.tree.treebased import TreeBasedRepresent
 
 from dress.datasetgeneration.os_utils import dump_yaml
 
-
-def _get_forbidden_zone(
-    input_seq: dict,
-    acceptor_untouched_range: List[int] = [-10, 2],
-    donor_untouched_range: List[int] = [-3, 6],
-    untouched_regions: Union[List[str], None] = None,
-    model: str = "spliceai",
-) -> List[range]:
-    """
-    Get intervals in the original sequence not allowed to be mutated.
-
-    It restricts mutations to be outside the vicinity of splice sites.
-
-    It restricts mutations to be outside of specific regions provided by
-    the user (e.g, a whole exon).
-
-    It also avoids creating mutations in regions outside of the black
-    box model resolution. In the case of `spliceai`, the resolution
-    will be 5000 bp left|right from the splice sites of the cassette
-    exon.
-
-    Args:
-        input_seq (dict): Original sequence
-        acceptor_untouched_range (List[int]): Range of positions surrounding
-        the acceptor splice site that will not be mutated
-        donor_untouched_range (List[int]): Range of positions surrounding
-        the donor splice site that will not be mutated
-        untouched_regions (Union[List[int], None]): Avoid mutating entire
-        regions of the sequence. Defaults to None.
-        model (str): Black box model
-    Returns:
-        List: Restricted intervals that will not be mutated
-    """
-    seq = input_seq["seq"]
-    ss_idx = input_seq["ss_idx"]
-    acceptor_range = list(map(int, acceptor_untouched_range))
-    donor_range = list(map(int, donor_untouched_range))
-
-    model_resolutions = {"spliceai": 5000, "pangolin": 5000}
-    region_ranges = {
-        "exon_upstream": ss_idx[0],
-        "intron_upstream": [ss_idx[0][1], ss_idx[1][0]],
-        "target_exon": ss_idx[1],
-        "intron_downstream": [ss_idx[1][1], ss_idx[2][0]],
-        "exon_downstream": ss_idx[2],
-    }
-
-    resolution = model_resolutions[model]
-    out = []
-
-    for ss in ss_idx:
-        # If splice site of upstream and|or downstream exon(s)
-        # is out of bounds (<NA>), or if [0, 0] is given, skip it
-        if isinstance(ss[0], int) and any(x != 0 for x in acceptor_range):
-            _range1 = range(ss[0] + acceptor_range[0], ss[0] + acceptor_range[1] + 1)
-            out.append(_range1)
-
-        if isinstance(ss[1], int) and any(x != 0 for x in donor_range):
-            _range2 = range(ss[1] + donor_range[0], ss[1] + donor_range[1] + 1)
-            out.append(_range2)
-
-    # Forbid to explore outside the model resolution
-    cassette_exon = ss_idx[1]
-
-    if cassette_exon[0] > resolution:
-        out.append(range(0, cassette_exon[0] - resolution))
-
-    if len(seq) - cassette_exon[1] - 1 > resolution:
-        out.append(range(cassette_exon[1] + resolution, len(seq) - 1))
-
-    if untouched_regions:
-        for region in untouched_regions:
-            try:
-                _range = region_ranges[region]
-                if all(x == "<NA>" for x in _range):
-                    continue
-                elif _range[0] == "<NA>":
-                    _range[0] = 0
-                elif _range[1] == "<NA>":
-                    _range[1] = len(seq) - 1
-                    
-            except KeyError:
-                raise ValueError(
-                    f"Region {region} not recognized. "
-                    f"Choose from {list(region_ranges.keys())}"
-                )
-
-            out.append(range(_range[0], _range[1] + 1))
-
-    return out
-
-
 def _is_valid_individual(
     ind: Individual, seq: str, regions: List[range], r: RandomSource
 ) -> bool:
@@ -308,6 +216,7 @@ def configPopulationEvaluator(
 def configureEvolution(
     input_seq: dict,
     grammar: Grammar,
+    excluded_regions: List[range],
     **kwargs,
 ) -> Tuple[GP, Archive]:
     """
@@ -318,6 +227,7 @@ def configureEvolution(
         the original sequence.
         grammar (Grammar): Grammar object that defines the language of the
         program.
+        excluded_regions (List[range]): Restricted intervals that will not be perturbed
 
     Returns:
         GP: A Genetic Programming object to be evolved
@@ -384,12 +294,7 @@ def configureEvolution(
     phenotypeCorrector = configPhenotypeCorrector(
         correct_phenotypes=correct_phenotypes,
         input_seq=input_seq,
-        excluded_regions=_get_forbidden_zone(
-            input_seq,
-            kwargs["acceptor_untouched_range"],
-            kwargs["donor_untouched_range"],
-            kwargs["untouched_regions"],
-        ),
+        excluded_regions=excluded_regions,
         grammar=grammar,
         representation=representation,
         random_source=random_source,
@@ -500,7 +405,7 @@ def configureEvolution(
         stopping_criterium = AnyOfStoppingCriterium(all_stopping_criteria)
 
     # Callbacks
-    callbacks: List[Callback] = [PrintBestCallbackWithGeneration()]
+    callbacks: List[Callback] = [] #[PrintBestCallbackWithGeneration()]
 
     if len(kwargs["operators_weight"]) > 1:
         update_at = sorted(kwargs["update_weights_at_generation"])

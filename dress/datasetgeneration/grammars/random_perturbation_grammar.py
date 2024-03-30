@@ -54,7 +54,7 @@ class DiffUnit(ABC):
 def create_random_grammar(
     input_seq: dict,
     **kwargs
-) -> Grammar:
+) -> Tuple[Grammar, List[range]]:
     """Creates a grammar for the original sequence
 
     Args:
@@ -62,6 +62,7 @@ def create_random_grammar(
 
     Returns:
         Grammar: Returns the grammar that specifies the production rules of the language
+        List[range]: List of ranges that cannot be perturbed
     """
     seqsize = len(input_seq["seq"])
     max_diff_units = kwargs.get("max_diff_units", 6)
@@ -102,7 +103,7 @@ def create_random_grammar(
             self.diffs.sort(key=lambda x: x.position)  # type: ignore
             to_exclude = []
             for i, d in enumerate(self.diffs):
-                if isinstance(d, RandomDeletion):
+                if isinstance(d, Deletion):
                     _r1 = range(d.position, d.position + d.get_size())
 
                     for _r2 in forbidden_regions:
@@ -145,7 +146,7 @@ def create_random_grammar(
                     self.diffs.remove(d)
                     continue
 
-                if isinstance(d, RandomDeletion):
+                if isinstance(d, Deletion):
                     current_r = [
                         1,
                         d.position,
@@ -154,7 +155,7 @@ def create_random_grammar(
                         str(d),
                     ]
 
-                elif isinstance(d, (RandomInsertion, SNV)):
+                elif isinstance(d, (Insertion, SNV)):
                     current_r = [1, d.position, d.position + 1, d.get_size(), str(d)]
 
                 else:
@@ -202,7 +203,7 @@ def create_random_grammar(
                     any(
                         p in to_exclude
                         for p in [new_pos, new_pos + _diff_unit.get_size()]  # type: ignore
-                        if isinstance(_diff_unit, RandomDeletion)
+                        if isinstance(_diff_unit, Deletion)
                     )
                     or new_pos in to_exclude
                 )
@@ -237,9 +238,9 @@ def create_random_grammar(
             for d in self.diffs:
                 seq = d.perturb(seq, position_tracker=tracker)
 
-                if isinstance(d, RandomInsertion):
+                if isinstance(d, Insertion):
                     tracker += d.get_size()
-                elif isinstance(d, RandomDeletion):
+                elif isinstance(d, Deletion):
                     tracker -= d.get_size()
 
                 ss_indexes = d.adjust_index(ss_indexes)
@@ -281,7 +282,7 @@ def create_random_grammar(
             return f"SNV[{self.position},{self.nucleotide},{self.get_location(LOCATION_MAP)},{self.get_distance_to_cassette(LOCATION_MAP)}]"
 
     @dataclass
-    class RandomDeletion(DiffUnit):
+    class Deletion(DiffUnit):
         position: Annotated[int, IntRangeExcludingSomeValues(0, seqsize - max_deletion_size, exclude=EXCLUDED_REGIONS)]
         size: Annotated[int, IntRange(min=1, max=max_deletion_size)]
 
@@ -307,10 +308,10 @@ def create_random_grammar(
             return self.size
 
         def __str__(self):
-            return f"RandomDeletion[{self.position},{self.position + self.size - 1},{self.get_location(LOCATION_MAP)},{self.get_distance_to_cassette(LOCATION_MAP)}]"
+            return f"Deletion[{self.position},{self.position + self.size - 1},{self.get_location(LOCATION_MAP)},{self.get_distance_to_cassette(LOCATION_MAP)}]"
 
     @dataclass
-    class RandomInsertion(DiffUnit):
+    class Insertion(DiffUnit):
         position: Annotated[int, IntRangeExcludingSomeValues(0, seqsize, exclude=EXCLUDED_REGIONS)]
         nucleotides: Annotated[str, RandomNucleotides(max_size=max_insertion_size)]
 
@@ -339,13 +340,13 @@ def create_random_grammar(
             return len(self.nucleotides)
 
         def __str__(self):
-            return f"RandomInsertion[{self.position},{self.nucleotides},{self.get_location(LOCATION_MAP)},{self.get_distance_to_cassette(LOCATION_MAP)}]"
+            return f"Insertion[{self.position},{self.nucleotides},{self.get_location(LOCATION_MAP)},{self.get_distance_to_cassette(LOCATION_MAP)}]"
 
     return extract_grammar(
         [
             weight(kwargs['snv_weight'])(SNV),
-            weight(kwargs['deletion_weight'])(RandomDeletion),
-            weight(kwargs['insertion_weight'])(RandomInsertion),
+            weight(kwargs['deletion_weight'])(Deletion),
+            weight(kwargs['insertion_weight'])(Insertion),
         ],
         DiffSequence,
-    )
+    ), EXCLUDED_REGIONS
