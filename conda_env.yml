@@ -1,4 +1,4 @@
-name: dress
+name: dress_dev
 channels:
   - conda-forge
   - bioconda

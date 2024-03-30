@@ -17,7 +17,7 @@ def fitness_function(diffs) -> float:
     return 0.5
 
 
-g = create_random_grammar(
+g, excluded_r = create_random_grammar(
     max_diff_units=6,
     snv_weight=0.33,
     insertion_weight=0.33,

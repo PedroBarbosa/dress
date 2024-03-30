@@ -38,7 +38,7 @@ class TestRawPreprocessing:
 
         data, _, na_exons = generate_pipeline_input(
             df=extracted,
-            fasta=open_fasta(genome),
+            fasta=open_fasta(genome, cache_dir),
             extend_borders=100,
             use_full_seqs=True,
         )
@@ -123,7 +123,7 @@ class TestRawPreprocessing:
 
         data, _, _ = generate_pipeline_input(
             df=extracted,
-            fasta=open_fasta(genome),
+            fasta=open_fasta(genome, cache_dir),
             extend_borders=100,
             use_full_seqs=False,
         )

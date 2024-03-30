@@ -4,7 +4,6 @@ from dress.datasetgeneration.archive import (
 )
 from dress.datasetgeneration.black_box.model import SpliceAI
 from dress.datasetgeneration.config_evolution import (
-    _get_forbidden_zone,
     configPhenotypeCorrector,
     configPopulationEvaluator,
     correct_phenotypes,
@@ -22,7 +21,9 @@ from dress.datasetgeneration.custom_population_evaluators import (
 from dress.datasetgeneration.custom_stopping import (
     EvaluationLimitCriterium,
 )
-from dress.datasetgeneration.grammars.random_perturbation_grammar import create_random_grammar
+from dress.datasetgeneration.grammars.random_perturbation_grammar import (
+    create_random_grammar,
+)
 
 from geneticengine.algorithms.gp.gp import GP
 from geneticengine.algorithms.gp.operators.combinators import ParallelStep, SequenceStep
@@ -44,14 +45,14 @@ def fitness_function(diffs) -> float:
     return 0.5
 
 
-g = create_random_grammar(
+g, excluded_r = create_random_grammar(
+    input_seq=input_seq,
     max_diff_units=6,
     snv_weight=0.33,
     insertion_weight=0.33,
     deletion_weight=0.33,
     max_insertion_size=5,
     max_deletion_size=5,
-    input_seq=input_seq,
 )
 
 p = SingleObjectiveProblem(minimize=False, fitness_function=fitness_function)
@@ -59,6 +60,16 @@ repr = TreeBasedRepresentation(g, max_depth=3)
 
 
 def create_setup():
+    (
+        model,
+        mapper,
+        phenotypeCorrector,
+        seq_fitness,
+        archiveUpdater,
+        rs,
+        archive,
+        custom_step,
+    ) = (None, None, None, None, None, None, None, None)
     rs = RandomSource(0)
     archive = Archive()
 
@@ -86,7 +97,7 @@ def create_setup():
     phenotypeCorrector = configPhenotypeCorrector(
         correct_phenotypes=correct_phenotypes,
         input_seq=input_seq,
-        excluded_regions=_get_forbidden_zone(input_seq),
+        excluded_regions=excluded_r,
         grammar=g,
         representation=repr,
         random_source=rs,
@@ -148,60 +159,60 @@ class TestArchivePruning:
         )
         assert n_diffs_before == n_diffs_after
 
-    # def test_at_end_of_evolution(self):
-    #     (
-    #         rs,
-    #         archive,
-    #         archiveUpdater,
-    #         mapper,
-    #         phenotypeCorrector,
-    #         custom_step,
-    #     ) = create_setup()
+    def test_at_end_of_evolution(self):
+        (
+            rs,
+            archive,
+            archiveUpdater,
+            mapper,
+            phenotypeCorrector,
+            custom_step,
+        ) = create_setup()
 
-    #     stopping_criterium = EvaluationLimitCriterium(500, archive)
+        stopping_criterium = EvaluationLimitCriterium(500, archive)
 
-    #     alg = GP(
-    #         random_source=rs,
-    #         representation=repr,
-    #         problem=p,
-    #         population_size=100,
-    #         stopping_criterium=stopping_criterium,
-    #         step=custom_step,
-    #         initializer=PopulationInitializerWithFitness(
-    #             mapper=mapper,
-    #             archiveUpdater=archiveUpdater,
-    #             corrector=phenotypeCorrector,
-    #         ),
-    #         callbacks=[PrintBestCallbackWithGeneration()],
-    #     )
+        alg = GP(
+            random_source=rs,
+            representation=repr,
+            problem=p,
+            population_size=100,
+            stopping_criterium=stopping_criterium,
+            step=custom_step,
+            initializer=PopulationInitializerWithFitness(
+                mapper=mapper,
+                archiveUpdater=archiveUpdater,
+                corrector=phenotypeCorrector,
+            ),
+            callbacks=[PrintBestCallbackWithGeneration()],
+        )
 
-    #     alg.evolve()
-    #     assert archive.size == 340
-    #     n_diffs_before = sum(
-    #         [len(ind.get_phenotype().diffs) for ind in archive.instances]
-    #     )
+        alg.evolve()
+        assert archive.size == 266
+        n_diffs_before = sum(
+            [len(ind.get_phenotype().diffs) for ind in archive.instances]
+        )
 
-    #     pruner = PruneArchiveCallback(archive=archive, mapper=mapper)
-    #     pruner.simplify()
+        pruner = PruneArchiveCallback(archive=archive, mapper=mapper)
+        pruner.simplify()
 
-    #     # All individuals should have been tested by now
-    #     assert len(pruner.evaluated_individuals) == 340
+        # All individuals should have been tested by now
+        assert len(pruner.evaluated_individuals) == 266
 
-    #     # Number of individuals pruned should be 8
-    #     assert pruner.n_pruned == 8
+        # Number of individuals pruned should be 6
+        assert pruner.n_pruned == 6
 
-    #     # Archive did not have any duplicate
-    #     assert archive.size == 340
+        # Archive did not have any duplicate
+        assert archive.size == 266
 
-    #     n_diffs_after = sum(
-    #         [len(ind.get_phenotype().diffs) for ind in archive.instances]
-    #     )
+        n_diffs_after = sum(
+            [len(ind.get_phenotype().diffs) for ind in archive.instances]
+        )
 
-    #     assert n_diffs_before == n_diffs_after + 8
+        assert n_diffs_before == n_diffs_after + 6
 
-    #     # Simplifying again should have not effect
-    #     pruner.simplify()
-    #     n_diffs_after2 = sum(
-    #         [len(ind.get_phenotype().diffs) for ind in archive.instances]
-    #     )
-    #     assert n_diffs_after == n_diffs_after2
+        # Simplifying again should have not effect
+        pruner.simplify()
+        n_diffs_after2 = sum(
+            [len(ind.get_phenotype().diffs) for ind in archive.instances]
+        )
+        assert n_diffs_after == n_diffs_after2

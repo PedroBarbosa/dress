@@ -17,7 +17,7 @@ SS_IDX = [[100, 150], [608, 641], [860, 944]]
 
 input_seq = {"seq_id": SEQ_ID, "seq": SEQ, "ss_idx": SS_IDX}
 
-g = create_random_grammar(
+g, _ = create_random_grammar(
     max_diff_units=6,
     snv_weight=0.33,
     insertion_weight=0.33,
@@ -71,6 +71,7 @@ class TestPangolin:
         raw_pred = model.run([SEQ], original_seq=True)
         score = model.get_exon_score({SEQ_ID: raw_pred}, ss_idx={SEQ_ID: SS_IDX})
         assert np.isclose(score[SEQ_ID], expected_result, atol=1e-05)
+        model = None
 
     def test_generated_seqs_pangolin(self):
         model = Pangolin(scoring_metric="mean", mode="ss_usage")
@@ -83,16 +84,13 @@ class TestPangolin:
         black_box_preds = [*new_scores.values()]
 
         assert len(raw_preds) == 100
-
-        assert np.allclose(
-            sorted(black_box_preds, reverse=True)[0:5],
-            [0.2803, 0.2796, 0.2407, 0.2217, 0.2136],
-            atol=1e-04,
-        )
-
+        assert np.allclose(sorted(black_box_preds, reverse=True)[0:5],
+                           [0.2887, 0.2049, 0.2026, 0.2011, 0.1939],
+                           atol=1e-04
+                           )
         assert np.allclose(
             sorted(black_box_preds)[0:5],
-            [0.0001, 0.021, 0.0548, 0.0601, 0.085],
+            [0.0939, 0.11, 0.1424, 0.1434, 0.1523],
             atol=1e-04,
         )
 
@@ -112,6 +110,7 @@ class TestSpliceAI:
         raw_pred = model.run([SEQ], original_seq=True)
         score = model.get_exon_score({SEQ_ID: raw_pred}, ss_idx={SEQ_ID: SS_IDX})
         assert np.isclose(score[SEQ_ID], expected_result, atol=1e-05)
+        model = None
 
     def test_generated_seqs_spliceai(self):
         model = SpliceAI(scoring_metric="mean")
@@ -125,11 +124,11 @@ class TestSpliceAI:
 
         assert np.allclose(
             sorted(black_box_preds, reverse=True)[0:5],
-            [0.4735, 0.449, 0.4472, 0.3794, 0.3788],
+            [0.4692, 0.3806, 0.3722, 0.3711, 0.3668],
             atol=1e-05,
         )
         assert np.allclose(
             sorted(black_box_preds)[0:5],
-            [0.0165, 0.1504, 0.2439, 0.2446, 0.2537],
+            [0.2626, 0.2769, 0.2945, 0.3162, 0.3184],
             atol=1e-05,
         )

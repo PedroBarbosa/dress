@@ -11,7 +11,7 @@ TOY_SEQ = "ACAGCAGGGGGGTTTTAGCCGTTACAGTCGATGC"
 TOY_SS_IDX = [[3, 5], [10, 12], [15, 18]]
 TOY_DANGER_ZONE = [range(2, 6), range(8, 13), range(15, 21)]
 
-toy_grammar = create_random_grammar(
+toy_grammar, _ = create_random_grammar(
     max_diff_units=6,
     snv_weight=0.33,
     insertion_weight=0.33,
@@ -23,8 +23,8 @@ toy_grammar = create_random_grammar(
 
 DiffSequence = toy_grammar.starting_symbol
 SNV = toy_grammar.alternatives[DiffUnit][0]
-RandomDeletion = toy_grammar.alternatives[DiffUnit][1]
-RandomInsertion = toy_grammar.alternatives[DiffUnit][2]
+Deletion = toy_grammar.alternatives[DiffUnit][1]
+Insertion = toy_grammar.alternatives[DiffUnit][2]
 r = RandomSource(0)
 
 
@@ -38,8 +38,8 @@ class TestPhenotypeCorrector:
         ind = DiffSequence(
             [
                 SNV(position=12, nucleotide="A"),
-                RandomDeletion(position=8, size=4),
-                RandomInsertion(position=22, nucleotides="ATCGG"),
+                Deletion(position=8, size=4),
+                Insertion(position=22, nucleotides="ATCGG"),
             ]
         )
 
@@ -51,8 +51,8 @@ class TestPhenotypeCorrector:
         ind = DiffSequence(
             [
                 SNV(position=13, nucleotide="A"),
-                RandomDeletion(position=8, size=4),
-                RandomInsertion(position=22, nucleotides="ATCGG"),
+                Deletion(position=8, size=4),
+                Insertion(position=22, nucleotides="ATCGG"),
             ]
         )
 
@@ -61,7 +61,7 @@ class TestPhenotypeCorrector:
 
         # Two deletions, one in the forbidden zone
         ind = DiffSequence(
-            [RandomDeletion(position=6, size=5), RandomDeletion(position=0, size=2)]
+            [Deletion(position=6, size=5), Deletion(position=0, size=2)]
         )
         ind.exclude_forbidden_regions(TOY_DANGER_ZONE, r)
         assert len(ind.diffs) == 1
@@ -69,7 +69,7 @@ class TestPhenotypeCorrector:
 
         # Two deletions in forbidden zone, remove those
         ind = DiffSequence(
-            [RandomDeletion(position=6, size=5), RandomDeletion(position=1, size=2)]
+            [Deletion(position=6, size=5), Deletion(position=1, size=2)]
         )
 
         ind.exclude_forbidden_regions(TOY_DANGER_ZONE, r)
@@ -84,25 +84,25 @@ class TestPhenotypeCorrector:
         ind = DiffSequence(
             [
                 SNV(position=10, nucleotide="A"),
-                RandomDeletion(position=8, size=4),
-                RandomInsertion(position=9, nucleotides="ATG"),
+                Deletion(position=8, size=4),
+                Insertion(position=9, nucleotides="ATG"),
             ]
         )
 
         ind.clean(TOY_SEQ, r)
         assert len(ind.diffs) == 1
-        assert isinstance(ind.diffs[0], RandomDeletion)
+        assert isinstance(ind.diffs[0], Deletion)
         assert ind.diffs[0].position == 8
 
-        # Overlappping RandomDeletions
+        # Overlappping Deletions
         # Because range overlaps are clustered, only one deletion
         # will be returned here (the longest of the cluster)
         ind = DiffSequence(
             [
-                RandomDeletion(position=7, size=4),
-                RandomDeletion(position=8, size=3),
-                RandomDeletion(position=9, size=5),
-                RandomDeletion(position=6, size=2),
+                Deletion(position=7, size=4),
+                Deletion(position=8, size=3),
+                Deletion(position=9, size=5),
+                Deletion(position=6, size=2),
             ]
         )
         ind.clean(TOY_SEQ, r)
@@ -113,10 +113,10 @@ class TestPhenotypeCorrector:
         # Two clusters here, indvidual should be composed by 2 DiffUnits
         ind = DiffSequence(
             [
-                RandomDeletion(position=7, size=4),
-                RandomDeletion(position=8, size=3),
-                RandomDeletion(position=9, size=5),
-                RandomDeletion(position=6, size=1),
+                Deletion(position=7, size=4),
+                Deletion(position=8, size=3),
+                Deletion(position=9, size=5),
+                Deletion(position=6, size=1),
             ]
         )
 
@@ -128,9 +128,9 @@ class TestPhenotypeCorrector:
         # Overlappping RandomDeletions of same size, first (position-wise) will be kept
         ind = DiffSequence(
             [
-                RandomDeletion(position=8, size=4),
-                RandomDeletion(position=7, size=4),
-                RandomDeletion(position=15, size=4),
+                Deletion(position=8, size=4),
+                Deletion(position=7, size=4),
+                Deletion(position=15, size=4),
             ]
         )
         ind.clean(TOY_SEQ, r)
@@ -141,13 +141,13 @@ class TestPhenotypeCorrector:
         ind = DiffSequence(
             [
                 SNV(position=8, nucleotide="A"),
-                RandomInsertion(position=8, nucleotides="ATCGG"),
-                RandomInsertion(position=9, nucleotides="ATCGG"),
+                Insertion(position=8, nucleotides="ATCGG"),
+                Insertion(position=9, nucleotides="ATCGG"),
             ]
         )
         ind.clean(TOY_SEQ, r)
         assert len(ind.diffs) == 2
-        assert all([isinstance(x, RandomInsertion) for x in ind.diffs])
+        assert all([isinstance(x, Insertion) for x in ind.diffs])
 
         # Redundant SNV, empty phenotype
         ind = DiffSequence([SNV(position=8, nucleotide="G")])
@@ -166,9 +166,9 @@ class TestPhenotypeCorrector:
         ind = DiffSequence(
             [
                 SNV(position=8, nucleotide="G"),
-                RandomInsertion(position=8, nucleotides="ATCGG"),
-                RandomInsertion(position=9, nucleotides="ATCGG"),
-                RandomDeletion(position=2, size=3),
+                Insertion(position=8, nucleotides="ATCGG"),
+                Insertion(position=9, nucleotides="ATCGG"),
+                Deletion(position=2, size=3),
                 SNV(position=0, nucleotide="A"),
             ]
         )
@@ -196,8 +196,8 @@ class TestPhenotypeToSequence:
                 SNV(position=5, nucleotide="A"),
                 SNV(position=6, nucleotide="G"),
                 SNV(position=6, nucleotide="T"),
-                RandomInsertion(position=15, nucleotides="CCGG"),
-                RandomInsertion(position=21, nucleotides="AAAA"),
+                Insertion(position=15, nucleotides="CCGG"),
+                Insertion(position=21, nucleotides="AAAA"),
                 SNV(position=2, nucleotide="A"),
             ]
         )
@@ -221,7 +221,7 @@ class TestPhenotypeToSequence:
 
         # Mutate in the last position
         ind = DiffSequence(
-            [RandomDeletion(position=6, size=2), SNV(position=33, nucleotide="A")]
+            [Deletion(position=6, size=2), SNV(position=33, nucleotide="A")]
         )
 
         seq = TOY_SEQ
@@ -234,8 +234,8 @@ class TestPhenotypeToSequence:
 
         ind = DiffSequence(
             [
-                RandomDeletion(position=6, size=2),
-                RandomInsertion(position=34, nucleotides="A"),
+                Deletion(position=6, size=2),
+                Insertion(position=34, nucleotides="A"),
             ]
         )
 
