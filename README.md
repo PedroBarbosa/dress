@@ -6,7 +6,7 @@ A toolkit for generating synthetic datasets related to RNA splicing.
 
 As for now, the package contains two commands:
  - `generate` to generate synthetic datasets from a start sequence.
- - `filter` to filter datasets by desired levels of PSI or dPSI.
+ - `filter` to filter datasets by desired levels of splice site probability, PSI or dPSI.
  
 To run an evolutionary search with exon 6 of FAS gene:
 

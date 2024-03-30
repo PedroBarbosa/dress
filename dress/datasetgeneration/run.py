@@ -546,9 +546,8 @@ def grammar_options(fun):
 @click.option(
     "-gn",
     "--genome",
-    type=click.Path(exists=True, resolve_path=True),
-    default=f"{DATA_PATH}/cache/GRCh38.primary_assembly.genome.fa",
-    help="Genome in fasta format. Only used when 'input' is 'bed' or 'tabular'.",
+    type=str,
+    help="Genome in fasta format. Only used when 'input' is 'bed' or 'tabular'. Default: 'GRCh38.primary_assembly.genome.fa' file in '--cache_dir'",
 )
 @click.option(
     "-cf",
@@ -671,8 +670,7 @@ def generate(**args):
             f"{args['outdir']}/{outbasename}_seed_{args['seed']}_dataset.csv.gz"
         )
         args['logger'].info("Calculating original score")
-        #_input = get_score_of_input_sequence(_input, **args)
-        _input['score'] = 0.49
+        _input = get_score_of_input_sequence(_input, **args)
         args['logger'].info(f"Original score: {_input['score']:.2f}")
         
         write_input_seq(_input, outoriginalfn)

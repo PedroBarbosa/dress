@@ -103,7 +103,7 @@ def return_dataset(input_seq: dict, archive: Archive) -> List[list]:
         _seq, _ss_idx = phenotype.apply_diff(seq, ss_idx)
         _ss_idx = ";".join([str(ss) for ss in itertools.chain(*_ss_idx)])
         out_data.append(
-            [str(ind), _seq, _ss_idx, ind.pred, round(ind.pred - original_pred, 4)]
+            [str(ind), _seq, _ss_idx, round(ind.pred, 4), round(ind.pred - original_pred, 4)]
         )
 
     out_data.sort(key=lambda x: x[1], reverse=True)
