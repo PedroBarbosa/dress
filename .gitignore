@@ -171,6 +171,7 @@ __pycache__/
 build/
 dist/
 
+tests/motifs
 data/cache/*
 output*
 .devcontainer

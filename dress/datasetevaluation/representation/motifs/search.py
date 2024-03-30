@@ -360,8 +360,7 @@ class MotifSearch:
 
         # Get PWMs per RBP represented as np.arrays
         if file_format == "meme":
-            self.logger.log(
-                "INFO",
+            self.logger.info(
                 "Loading and processing PWM file from {} source".format(self.motif_db),
             )
             motifs = _read_meme(db)
@@ -370,8 +369,7 @@ class MotifSearch:
             raise NotImplementedError("Only MEME db format is allowed for now.")
 
         if to_flat:
-            self.logger.log(
-                "DEBUG",
+            self.logger.debug(
                 "Generating unambiguous sequences using {} "
                 "as the minimum nucleotide probability".format(
                     self.min_nucleotide_probability
@@ -395,10 +393,9 @@ class MotifSearch:
                     per_rbp_motifs.update(flat_good)
 
                 too_short.extend(list(_too_short))
-                final[rbp_name] = list(per_rbp_motifs)
+                final[rbp_name] = sorted(list(per_rbp_motifs))
 
-            self.logger.log(
-                "DEBUG",
+            self.logger.debug(
                 "Number of motifs removed due to short size (< {}): {}".format(
                     self.min_motif_length, len(too_short)
                 ),
@@ -444,8 +441,7 @@ class MotifSearch:
                         )
                     )
 
-                self.logger.log(
-                    "WARNING",
+                self.logger.warning(
                     "Some RBPs provided are not in the {} database (N={}):'{}'.".format(
                         self.motif_db, len(absent), ",".join(absent)
                     ),
@@ -467,7 +463,7 @@ class PlainSearch(MotifSearch):
     Motif search using plain string matching
     """
 
-    def __init__(self, dataset: pd.DataFrame, subset_rbps: Union[str, list], **kwargs):
+    def __init__(self, dataset: pd.DataFrame, subset_rbps: Union[str, list] = "encode", **kwargs):
         super().__init__(dataset=dataset, subset_rbps=subset_rbps, **kwargs)
         assert self.motif_search == "plain"
         self.motif_results = self.scan()
@@ -493,8 +489,7 @@ class PlainSearch(MotifSearch):
         :return pd.DataFrame: Df with the counts of each
         motif of each RBP on each sequence
         """
-        self.logger.log(
-            "INFO",
+        self.logger.info(
             f"Searching motifs in {self.dataset.shape[0]} sequences using a plain search",
         )
 
@@ -544,7 +539,7 @@ class PlainSearch(MotifSearch):
             ],
         )
 
-        self.logger.log("INFO", "Done. {} hits found".format(df.shape[0]))
+        self.logger.info("Done. {} hits found".format(df.shape[0]))
         if not self.skip_raw_motifs_filtering:
             df = self.filter_raw_output(df)
 
@@ -559,7 +554,7 @@ class FimoSearch(MotifSearch):
     Motif search using FIMO software
     """
 
-    def __init__(self, dataset: pd.DataFrame, subset_rbps: Union[str, list], **kwargs):
+    def __init__(self, dataset: pd.DataFrame, subset_rbps: Union[str, list] = "encode", **kwargs):
         """
         Set up a FIMO search using FIMO.
 
@@ -746,7 +741,7 @@ class FimoSearch(MotifSearch):
             os.remove(fasta_files)
 
         df = df.drop_duplicates(["Seq_id", "RBP_name", "Start", "End"], keep="first")
-        self.logger.log("INFO", "Done. {} hits found".format(df.shape[0]))
+        self.logger.info("Done. {} hits found".format(df.shape[0]))
 
         if not self.skip_raw_motifs_filtering:
             df = self.filter_raw_output(df)
@@ -763,7 +758,7 @@ class BiopythonSearch(MotifSearch):
     position-specific scoring matrices (PSSM)
     """
 
-    def __init__(self, dataset: pd.DataFrame, subset_rbps: Union[str, list], **kwargs):
+    def __init__(self, dataset: pd.DataFrame, subset_rbps: Union[str, list] = "encode", **kwargs):
         """
         Set up a Biopython search.
 
@@ -801,7 +796,7 @@ class BiopythonSearch(MotifSearch):
         based on the positions above the threshold
         """
 
-        self.logger.log("INFO", "Scanning motifs using biopython")
+        self.logger.info("Scanning motifs using biopython")
 
         def _scan(row: pd.Series, **kwargs) -> list:
             motifs_uniq = kwargs["motifs_uniq"]
@@ -880,9 +875,7 @@ class BiopythonSearch(MotifSearch):
             res = self.dataset.head(1).apply(_scan, **kwargs, axis=1)
             res = list(res.explode())
 
-            self.logger.log(
-                "INFO",
-                "Median best threshold obtained for {} PSSMs "
+            self.logger.info("Median best threshold obtained for {} PSSMs "
                 "available at {} db for {} gene: {}".format(
                     len(res), self.motif_db, self.subset_rbps, round(np.median(res), 5)
                 ),
@@ -896,7 +889,7 @@ class BiopythonSearch(MotifSearch):
         else:
             res = self.dataset.apply(_scan, **kwargs, axis=1)
 
-        self.logger.log("INFO", "Aggregating results")
+        self.logger.info("Aggregating results")
 
         res = list(itertools.chain(*res))
         df = pd.DataFrame.from_records(
@@ -913,13 +906,13 @@ class BiopythonSearch(MotifSearch):
             ],
         )
 
-        #  self.logger.log('INFO', "Selecting highest score for repeated motif matches")
+        #  self.logger.info("Selecting highest score for repeated motif matches")
         # If match to different PWMs at the same positions, keep highest score
         # idx = df.groupby(['Seq_id', 'RBP_name', 'Start', 'End'])['PSSM_score'].idxmax()
         # df = df.loc[idx]
         df = df.drop_duplicates(["Seq_id", "RBP_name", "Start", "End"], keep="first")
         df.round({"PSSM_score": 4})
-        self.logger.log("INFO", "Done. {} hits found".format(df.shape[0]))
+        self.logger.info("Done. {} hits found".format(df.shape[0]))
 
         if not self.skip_raw_motifs_filtering:
             df = self.filter_raw_output(df)

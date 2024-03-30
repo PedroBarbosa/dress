@@ -39,7 +39,7 @@ def batch_function_pangolin(model_nums: list) -> Callable[[Any], Any]:
         for j, model_num in enumerate(model_nums):
             score = []
             
-            # Average across 5 models
+            # Average across 4 models
             for model in models[5*j:5*j+5]:
                 with torch.no_grad():
                     score.append(model(batch)[:, INDEX_MAP[model_num], :].cpu().numpy())
