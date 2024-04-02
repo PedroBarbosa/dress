@@ -259,12 +259,19 @@ class Archive(object):
             spanned = 0
 
             for diff_unit in ind.split("|"):
-                if "RandomDeletion" in diff_unit:
-                    n = list(map(int, re.findall("\d+", diff_unit)))
+                # Random Grammar
+                if diff_unit.startswith('Deletion'):
+                    n = list(map(int, re.findall("\d+", diff_unit)))[0:2]
                     spanned += n[1] - n[0] + 1
-                elif "RandomInsertion" in diff_unit:
-                    spanned += len(re.findall(",(.+)\]", diff_unit)[0])
+                elif diff_unit.startswith('Insertion'):
+                    spanned += len(diff_unit.split(',')[1])
                 elif "SNV" in diff_unit:
+                    spanned += 1
+                
+                # Motif-based Grammar
+                elif diff_unit.startswith(('MotifDeletion', 'MotifInsertion')):
+                    spanned += int(diff_unit.split(',')[2])
+                elif diff_unit.startswith('MotifSNV'):
                     spanned += 1
                 else:
                     print(ind)
