@@ -52,7 +52,7 @@ def check_input_args(args) -> None:
                         "If '--list' is provided, '--dataset' and '--another_dataset' "
                         "must be a single file listing one dataset per line."
                 )
-        args["dataset"] = [line.rstrip("\n") for line in open(dataset[0])]
+        args["dataset"] = [line.rstrip("\n") for line in open(args["dataset"][0])]
 
         if args["another_dataset"]:
             groups = args["groups"] or ["1", "2"]
@@ -60,6 +60,7 @@ def check_input_args(args) -> None:
                 raise click.UsageError(
                     f"When '--another_dataset' is provided, '--groups' must have two elements.  Groups given: {args['groups']}"
                 )
+            args["another_dataset"] = [line.rstrip("\n") for line in open(args["another_dataset"][0])]
 
         if args["groups"] and len(args["groups"]) != len(
             [d for d in [args["dataset"], args["another_dataset"]] if d]
