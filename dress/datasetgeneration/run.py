@@ -206,7 +206,8 @@ def evo_alg_options_generate(fun):
         type=int,
         default=5000,
         help="Number of desired sequences in archive to generate a per-bin target size when "
-        "the '--fitness_function' is 'bin_filler.",
+        "the '--fitness_function' is 'bin_filler. This number is also used to calculate quality "
+        "metrics of the archive. Default: 5000",
     )(fun)
 
     fun = click.option(
@@ -303,19 +304,20 @@ def evo_alg_options_generate(fun):
         help="Use a custom mutation operator that mutates individuals by selecting positions in "
         "the sequence that are close to existing perturbed positions in the same individual. "
         "(e.g, to foster the combination of perturbations affecting a single binding "
-        "motif). Default: 'False'",
+        "motif). Only used when '--which_grammar' is 'random'. Default: 'False'",
     )(fun)
 
     fun = click.option(
         "-cmow",
         "--custom_mutation_operator_weight",
         type=float,
-        default=0.9,
-        help="When '--custom_mutation_operator' is set, what is the weight (probability) of that operator "
-        "to be used in respect to the default (random) mutation operator. This does not affect the "
-        "'--mutation_probability' (probability that individuals exposed to a MutationStep will be "
-        "actually mutated). Default: '0.9', 90 percent using the custom mutation operator, 10 percent "
-        "using the default random operator.",
+        default=0.8,
+        help="Weight (probability) of the custom mutation operator to be used in respect to the "
+        "default (random) mutation operator. This does not affect the '--mutation_probability' "
+        "(probability that individuals exposed to a MutationStep will be actually mutated). "
+        "Only used when '--which_grammar' is 'random' and '--custom_mutation_operator' is set. "
+        "Default: '0.8', 80 percent using the custom mutation operator, 20 percent using the "
+        "default random operator.",
     )(fun)
 
     fun = click.option(

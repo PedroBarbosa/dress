@@ -31,7 +31,7 @@ def write_dataset(
             outbasename,
             seed,
             input["seq_id"],
-            "original",
+            "wt",
             input["seq"],
             ";".join([str(x) for sublist in input["ss_idx"] for x in sublist]),
             input["score"],

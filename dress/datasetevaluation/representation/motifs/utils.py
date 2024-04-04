@@ -102,6 +102,26 @@ def _dataset_to_fasta(
 
         return out
 
+def _get_wt_seq_ids(dataset: pd.DataFrame, logger) -> Union[dict, None]:
+    """
+    Get Seq_id referring to wt sequences.
+
+    Args:
+        dataset (pd.DataFrame): Dataset
+
+    Returns:
+        Union[dict, None]: Dictionary with wt Seq_id for each group
+    """
+    out = {}
+    for group, df in dataset.groupby("group"):
+        if df[df.Phenotype == "wt"].empty:
+            logger.warning(f"Group {group} does not have a wt sequence. Summary files (motifs gained/lost in respect to the wt seq) will not be generated")
+            return None
+        elif df[df.Phenotype == "wt"].shape[0] > 1:
+            logger.warning(f"Group {group} has more than one wt sequence. Summary files (motifs gained/lost in respect to the wt seq) will not be generated")
+            return None
+        out[group] = df[df.Phenotype == "wt"].Seq_id.values[0]
+    return out
 
 def _read_meme(db: str) -> dict:
     """Reads PWMs from a database in MEME format
@@ -288,10 +308,10 @@ def _redundancy_and_density_analysis(
     _df = df.copy()
     _df = _df.rename(columns=rename_pr)
 
-    logger.debug("Self contained hits analysis..")
+    #logger.debug("Self contained hits analysis..")
     _df = _remove_self_contained(pr.PyRanges(_df), scan_method)
 
-    logger.debug("Nearby hits analysis")
+    #logger.debug("Nearby hits analysis")
     _df = _tag_high_density(_df)
 
     # logger.info("Aggregating duplicate motifs across multiple RBPs")
@@ -376,7 +396,7 @@ def _remove_self_contained(gr: pr.PyRanges, scan_method: str) -> pr.PyRanges:
             )
 
             df = df.loc[df._merge == "left_only"]
-            logger.debug(".. {} hits removed ..".format(contained_same_rbp.shape[0]))
+            #logger.debug(".. {} hits removed ..".format(contained_same_rbp.shape[0]))
 
             # Add self.contained.tag
             contained_same_rbp.drop(columns=to_drop_cols[1:], inplace=True)

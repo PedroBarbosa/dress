@@ -13,14 +13,14 @@ class Dataset(object):
     def __init__(
         self,
         dataset: Union[str, list, pd.DataFrame],
-        group: Union[str, None] = None,
+        group: Union[str, None] = "1",
     ) -> None:
         """Representation of an evolved dataset
 
         Args:
             dataset (Union[str, list, pd.DataFrame]): If provided as a DataFrame and 'id' and 'group' columns exist,
         'id' will be re-incremented, and 'group' will be overridden by the 'group' argument.
-            group (str, optional): Group of the dataset(s) (e.g. 'positive', 'control')
+            group (str, optional): Group of the dataset(s) (e.g. 'positive', 'control'). Defaults to 1.
         """
 
         if group:
@@ -29,7 +29,7 @@ class Dataset(object):
         self.group = group
         if isinstance(dataset, pd.DataFrame):
             self.data: pd.DataFrame = self._load_from_df(dataset)
- 
+
         else:
             self.data: pd.DataFrame = self._load(dataset)
         self.dataset_size = len(self.data)
@@ -40,8 +40,8 @@ class Dataset(object):
         self._wt_seq = self.data.iloc[0].Sequence
         self._wt_score = self.data.iloc[0].Score
         self._wt_ss = self.data.iloc[0].Splice_site_positions
-        self._metrics = Archive(dataset=self.data.iloc[1:]).metrics
-        self._quality = Archive(dataset=self.data.iloc[1:]).quality
+        #self._metrics = Archive(dataset=self.data.iloc[1:]).metrics
+        #self._quality = Archive(dataset=self.data.iloc[1:]).quality
 
     def __len__(self):
         return self.dataset_size
@@ -64,7 +64,7 @@ class Dataset(object):
     @property
     def wt_score(self):
         return self._wt_score
-    
+
     @property
     def wt_splice_sites(self):
         return self._wt_ss
@@ -81,11 +81,11 @@ class Dataset(object):
     @property
     def metrics(self):
         return self._metrics
-    
+
     @property
     def quality(self):
         return self._quality
-    
+
     def _load_from_df(self, df: pd.DataFrame) -> pd.DataFrame:
         """
         Load dataset(s) from a dataframe.
@@ -140,7 +140,7 @@ class Dataset(object):
                     df = pd.read_csv(files[0])
                 else:
                     df = _read_multiple_files(files)
-                    
+
             elif os.path.isfile(dataset):
                 df = pd.read_csv(dataset)
 
@@ -150,7 +150,7 @@ class Dataset(object):
 
         # List of files
         elif isinstance(dataset, Union[list]):
-            
+
             for f in dataset:
                 assert os.path.isfile(f), f"File {f} not found"
 
@@ -165,10 +165,10 @@ class Dataset(object):
         if self.group:
             df["group"] = self.group
 
+        df.loc[df.Phenotype == "wt", "Seq_id"] += "_wt"
         df = _remove_duplicates_across_seeds(df).reset_index(drop=True)
         df = _increment_seq_id(df)
         return _create_integer_id(df)
-
 
 
 class PairedDataset(object):
@@ -189,11 +189,11 @@ class PairedDataset(object):
         self.dataset1 = dataset1
         self.dataset2 = dataset2
 
-        self.data = pd.concat([self.dataset1.data, self.dataset2.data]).reset_index(
+        data = pd.concat([self.dataset1.data, self.dataset2.data]).reset_index(
             drop=True
         )
-        self.data["id"] = range(len(self.data))
 
+        self.data = _create_integer_id(data)
         self.dataset1.data = None
         self.dataset2.data = None
 
@@ -203,9 +203,7 @@ class PairedDataset(object):
     def __str__(self) -> str:
         n_g1 = len(self.data[self.data.group == self.dataset1.group])
         n_g2 = len(self.data[self.data.group == self.dataset2.group])
-        return "Paired Dataset with {} sequences (group {}:{}, group {}:{})".format(
-            self.__len__(), self.dataset1.group, n_g1, self.dataset2.group, n_g2
-        )
+        return f"Paired Dataset with {self.__len__()} sequences (group {self.dataset1.group}:{n_g1}, group {self.dataset2.group}:{n_g2})"
 
     @property
     def ngroups(self):
@@ -224,7 +222,7 @@ def structure_dataset(
         Dataset: Configured dataset(s)
     """
     _g1 = kwargs["groups"][0] if kwargs["groups"] else "1"
-  
+
     def _create_single_dataset(data, group):
         return Dataset(data[0] if len(data) == 1 else list(data), group=group)
 
@@ -240,13 +238,14 @@ def structure_dataset(
 
     return dataset1
 
+
 def _read_multiple_files(files: list) -> pd.DataFrame:
     """
     Read multiple files into a single dataframe
 
     Args:
         files (list): List of dataset files
-    
+
     Returns:
         pd.DataFrame: Single dataframe with all datasets
     """
@@ -264,6 +263,7 @@ def _read_multiple_files(files: list) -> pd.DataFrame:
 
         dfs.append(aux)
     return pd.concat(dfs)
+
 
 def _remove_duplicates_across_seeds(df: pd.DataFrame) -> pd.DataFrame:
     """Remove duplicated sequences generated across different evolutionary processes
@@ -283,6 +283,7 @@ def _remove_duplicates_across_seeds(df: pd.DataFrame) -> pd.DataFrame:
         .drop_duplicates("Sequence", keep="first")
     )
 
+
 def _increment_seq_id(df: pd.DataFrame) -> pd.DataFrame:
     """Create unique sequence IDs for a given dataset
 
@@ -292,18 +293,25 @@ def _increment_seq_id(df: pd.DataFrame) -> pd.DataFrame:
     Returns:
         pd.DataFrame: Dataset with unique sequence IDs
     """
+    #assert df.iloc[0].Phenotype == "original", "First sequence must be the original one"
 
     df_count = df.groupby("Seq_id").size().reset_index(name="counts")
+
     df = df.merge(df_count, on="Seq_id", how="left")
     df["_counter"] = (
         df.groupby("Seq_id").cumcount().astype(str).where(df["counts"] > 1, "")
     )
-    df["Seq_id"] = df["Seq_id"] + df["_counter"].apply(
-        lambda x: "_" + x if x != "" else ""
+
+    df["Seq_id"] = (
+        df.Seq_id
+        + "_g"
+        + df.group
+        + df._counter.apply(lambda x: "_" + x if x != "" else "")
     )
     df = df.drop(columns=["counts", "_counter"])
 
     return df
+
 
 def _create_integer_id(df: pd.DataFrame) -> pd.DataFrame:
     """Create unique integer IDs for a given dataset
@@ -312,6 +320,8 @@ def _create_integer_id(df: pd.DataFrame) -> pd.DataFrame:
         df (pd.DataFrame): Dataset
 
     Returns:
-        pd.DataFrame: Dataset with unique sequence IDs
+        pd.DataFrame: Dataset with an unique integer ID
     """
-    return df.reset_index().rename(columns={"index": "id"})
+    df = df.reset_index(drop=True)
+    df["id"] = range(len(df))
+    return df

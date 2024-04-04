@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import re
 import subprocess
+from dress.datasetgeneration.dataset import Dataset
 from dress.datasetgeneration.os_utils import assign_proper_basename
 import numpy as np
 import pandas as pd
@@ -18,6 +19,7 @@ from pandarallel import pandarallel
 from dress.datasetevaluation.representation.motifs.rbp_lists import RBP_SUBSETS
 
 from dress.datasetevaluation.representation.motifs.utils import (
+    _get_wt_seq_ids,
     _get_loc_of_motif,
     _pwm_to_ambiguous,
     _pwm_to_unambiguous,
@@ -30,10 +32,15 @@ from dress.datasetevaluation.representation.motifs.utils import (
 
 
 class MotifSearch:
-    def __init__(self, dataset, **kwargs):
-        """ """
+    def __init__(self, dataset: Union[Dataset, pd.DataFrame], **kwargs):
+        """
+        """
+        if isinstance(dataset, Dataset):
+            self.dataset = dataset.data
+        else:
+            assert "group" in dataset.columns, "A 'group' column must exist in the data"
+            self.dataset = dataset
 
-        self.dataset = dataset
         if "logger" in kwargs:
             self.logger = kwargs["logger"]
         else:
@@ -49,6 +56,7 @@ class MotifSearch:
         self.outdir = os.path.join(kwargs["outdir"], "motifs")
         os.makedirs(self.outdir, exist_ok=True)
         self.outbasename = assign_proper_basename(kwargs.get("outbasename"))
+        self.wt_seq_ids = _get_wt_seq_ids(self.dataset, self.logger) 
 
         to_flat = False if self.motif_search == "biopython" else True
         if self.motif_db in ["rosina2017", "encode2020_RBNS"]:
@@ -158,17 +166,19 @@ class MotifSearch:
                 index="Seq_id", columns=col_to_use, aggfunc="size", fill_value=0
             )
             counts = counts.reindex(columns=all_values, fill_value=0)
-            cols = ["Seq_id", "Score", "Delta_score"]
-            if "group" in self.dataset.columns and self.dataset["group"].nunique() > 1:
-                cols.append("group")
-
-            return pd.merge(
-                counts, self.dataset[cols], how="left", on="Seq_id"
-            )
-
+            cols = ["Seq_id", "Score", "Delta_score", "group"]
+            counts = pd.merge(counts, self.dataset[cols], how='left', on='Seq_id')
+            if self.wt_seq_ids:
+                sorted = []
+                for group, df_counts in counts.groupby("group"):
+                    wt_row = df_counts[df_counts.Seq_id == self.wt_seq_ids[group]]
+                    sorted.append(pd.concat([wt_row, df_counts.drop(wt_row.index)]))
+                
+            return pd.concat(sorted)
+    
 
         def _get_gain_loss_summary(df: pd.DataFrame) -> pd.DataFrame:
-                
+
             def _get_rbp_count(row: pd.Series): 
                 pos, neg = [], []
 
@@ -183,30 +193,33 @@ class MotifSearch:
                         neg.append(f"{rbp}_x{abs(c)}")
                 return ';'.join(pos), ';'.join(neg)
             
-            df_counts = df.copy()
-            df_counts.set_index("Seq_id", inplace=True)
-            rbp_cols = [
-                c
-                for c in df_counts.columns
-                if c not in ["Score", "Delta_score", "group"]
-            ]
-            reference_row = df_counts.iloc[0]
+            df = df.copy()
+            out = []
+            merge_cols = ["Score", "Delta_score", "group"]
+            for group, df_counts in df.groupby("group"):
+                wt_row = df_counts[df_counts.Seq_id == self.wt_seq_ids[group]]
+                assert len(wt_row) == 1
 
-            differences = df_counts[rbp_cols].sub(reference_row[rbp_cols], axis=1).astype(int)
-            n_df = pd.concat([differences[differences > 0].sum(axis=1), 
-                               differences[differences < 0].sum(axis=1).abs()], axis=1).astype(int)
-            n_df.columns = ['N_gained', 'N_lost']
+                df_counts.set_index("Seq_id", inplace=True)
+                rbp_cols = [
+                    c
+                    for c in df_counts.columns
+                    if c not in merge_cols
+                ]
+                
+                differences = df_counts[rbp_cols].sub(wt_row.iloc[0][rbp_cols], axis=1).astype(int)
+                n_df = pd.concat([differences[differences > 0].sum(axis=1), 
+                                differences[differences < 0].sum(axis=1).abs()], axis=1).astype(int)
+                n_df.columns = ['N_gained', 'N_lost']
 
-            differences[['RBP_gained', 'RBP_lost']] = differences.apply(_get_rbp_count, axis=1, result_type='expand')
-            res_df = n_df.merge(differences[['RBP_gained', 'RBP_lost']], on='Seq_id')
-
-            merge_cols = ["Score", "Delta_score"]
-            if "group" in df_counts.columns:
-                merge_cols.append("group")
-            return res_df.merge(
-                df_counts[merge_cols], left_index=True, right_index=True
-            ).reset_index()
-
+                differences[['RBP_gained', 'RBP_lost']] = differences.apply(_get_rbp_count, axis=1, result_type='expand')
+                res_df = n_df.merge(differences[['RBP_gained', 'RBP_lost']], on='Seq_id')
+                res = res_df.merge(
+                    df_counts[merge_cols], left_index=True, right_index=True
+                ).reset_index()
+                out.append(res)
+            return pd.concat(out)
+        
         # List all possible rbps
         all_rbps = list(self.motifs.keys())
         all_rbps_detailed = []
@@ -232,29 +245,35 @@ class MotifSearch:
             ["RBP_name", "RBP_name_motif"], [all_rbps, all_rbps_detailed]
         ):
             rbp_counts_list.append(_counts_per_rbp(col, all_values))
-     
+
+        OUT = {"RBP_COUNTS": rbp_counts_list[0],
+               "MOTIF_COUNTS": rbp_counts_list[1]}
+        
         # Generate summary of motif gains/losses
-        summary_list = []
-        import time
-        start = time.time()
-        for counts_df in rbp_counts_list:
-            summary_list.append(_get_gain_loss_summary(counts_df))
+        if self.wt_seq_ids:
+            summary_list = []
+            for counts_df in rbp_counts_list:
+                summary_list.append(_get_gain_loss_summary(counts_df))
+            OUT["RBP_SUMMARY"] = summary_list[0]
+            OUT["MOTIF_SUMMARY"] = summary_list[1]
+
+        # Organize output
+        if self.dataset.group.nunique() == 2:
+            self.motif_results = self.motif_results.merge(self.dataset[['Seq_id', 'group']], on='Seq_id').sort_values('group')
+        else:
+            for k, v in OUT.items():
+                OUT[k] = v.drop(columns='group', errors='ignore')
 
         if write_output:
+
             self.motif_results.to_csv(
                 self.outdir + "/{}MOTIF_MATCHES.tsv.gz".format(self.outbasename),
                 compression="gzip",
                 sep="\t",
                 index=False,
             )
-            # Motif counts
-            for key, df in {
-                "RBP_COUNTS": rbp_counts_list[0],
-                "MOTIF_COUNTS": rbp_counts_list[1],
-                "RBP_SUMMARY": summary_list[0],
-                "MOTIF_SUMMARY": summary_list[1],
-            }.items():
-     
+
+            for key, df in OUT.items():
                 df.to_csv(
                     self.outdir + f"/{self.outbasename}{key}.tsv.gz",
                     compression="gzip",
@@ -563,6 +582,7 @@ class FimoSearch(MotifSearch):
                 - pvalue_threshold (float): only keep motif matches below p-value threshold. Default: `0.00005`
                 - qvalue_threshold (float): only keep motif matches below q-value threshold. Default: `None`
         """
+
         super().__init__(dataset, subset_rbps=subset_rbps, **kwargs)
         assert self.motif_search == "fimo"
         assert self.motif_db not in [
@@ -658,9 +678,7 @@ class FimoSearch(MotifSearch):
             except pd.errors.EmptyDataError:
                 return
 
-        self.logger.debug("Base command to run FIMO: {}".format(" ".join(base_cmd))
-        )
-
+        self.logger.debug(f"Base command to run FIMO: {' '.join(base_cmd)}")
         fimo_outdir = self.outdir + "/fimo"
         os.makedirs(fimo_outdir, exist_ok=True)
 
