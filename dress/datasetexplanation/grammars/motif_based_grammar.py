@@ -43,7 +43,8 @@ LOCATIONS_MAP = {
     'Intron_upstream': ['Intron_upstream'],
     'Intron_downstream': ['Intron_downstream']
 }
-class MotifRule(ABC):
+
+class Feature(ABC):
     pass
 
 def create_grammar(
@@ -70,7 +71,7 @@ def create_grammar(
 
     @dataclass
     class DatasetExplanation(object):
-        rules: Annotated[list[MotifRule], ListSizeBetween(1, max_n_rules)]
+        features: Annotated[list[Feature], ListSizeBetween(1, max_n_rules)]
         
         def predict(self, X: pd.DataFrame, y: pd.Series, cursor: sqlite3) -> None:
             X = [r.evaluate(X, cursor) for r in self.rules]
@@ -82,7 +83,7 @@ def create_grammar(
             return "|".join([str(d) for d in self.rules])      
          
     @dataclass
-    class MotifPresence(MotifRule):
+    class MotifPresence(Feature):
         rbp: Annotated[int, VarRange(rbp_list)]
         location: Annotated[str, VarRange(LOCATIONS)]
 

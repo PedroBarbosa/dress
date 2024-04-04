@@ -7,6 +7,7 @@ from typing import Annotated, Tuple, Union
 import pandas as pd
 import pyranges as pr
 from dress.datasetevaluation.representation.motifs.search import FimoSearch, PlainSearch
+from dress.datasetgeneration.dataset import Dataset
 from dress.datasetgeneration.metahandlers.ints import (
     CustomIntListDeletions,
     CustomIntListInsertions,
@@ -64,8 +65,9 @@ def create_motif_grammar(
 
     max_diff_units = kwargs.get("max_diff_units", 6)
     seqsize = len(input_seq["seq"])
+    kwargs["logger"].info(f"Scanning motifs in the original sequence")
     motif_searcher = MOTIF_SEARCH_OPTIONS.get(kwargs.get("motif_search", "fimo"))
-    motif_search = motif_searcher(dataset=_dict_to_df(input_seq), **kwargs)
+    motif_search = motif_searcher(dataset=Dataset(_dict_to_df(input_seq)), **kwargs)
 
     LOCATION_MAP = _get_location_map(input_seq)
     EXCLUDED_REGIONS = _get_forbidden_zones(
@@ -180,7 +182,7 @@ def create_motif_grammar(
                 _df = pd.DataFrame(ranges, columns=cols)
                 _df["id"] = _df.index
                 gr = pr.PyRanges(_df)
-          
+
                 to_keep = (
                     gr.cluster(slack=-1)
                     .as_df()
@@ -261,7 +263,12 @@ def create_motif_grammar(
 
     @dataclass
     class MotifSNV(DiffUnit):
-        position: Annotated[int, IntListExcludingSomeValues(MOTIF_INFO_SNV.position.unique().tolist(), exclude=EXCLUDED_REGIONS)]
+        position: Annotated[
+            int,
+            IntListExcludingSomeValues(
+                MOTIF_INFO_SNV.position.unique().tolist(), exclude=EXCLUDED_REGIONS
+            ),
+        ]
         nucleotide: Annotated[str, VarRange(NUCLEOTIDES)]
 
         def perturb(self, seq: str, position_tracker: int) -> str:
@@ -287,9 +294,7 @@ def create_motif_grammar(
             return 1
 
         def __str__(self):
-            _info = MOTIF_INFO_SNV[MOTIF_INFO_SNV.position == self.position].iloc[
-                0
-            ]
+            _info = MOTIF_INFO_SNV[MOTIF_INFO_SNV.position == self.position].iloc[0]
             return f"MotifSNV[{self.position},{_info.rbp_name},{_info.ref_nuc}>{self.nucleotide},{_info.location},{_info.distance_to_cassette},{_info.position_in_motif}]"
 
     @dataclass
@@ -308,9 +313,13 @@ def create_motif_grammar(
 
         def adjust_index(self, ss_indexes: List[list]) -> List[list]:
             _ss_idx = list(itertools.chain(*ss_indexes))
-            
+
             adj = [
-                ss - self.get_size() if isinstance(ss, int) and self.position[0] < ss else ss
+                (
+                    ss - self.get_size()
+                    if isinstance(ss, int) and self.position[0] < ss
+                    else ss
+                )
                 for ss in _ss_idx
             ]
             return [adj[0:2], adj[2:4], adj[4:6]]
@@ -325,7 +334,7 @@ def create_motif_grammar(
         def __str__(self):
             _info = MOTIF_INFO_DELS[self.position[2]]
             rbps = ">5RBPs" if _info[5][0].count(";") + 1 > 5 else _info[5][0]
-            return f"MotifDeletion[{self.position[0]},{rbps},{self.position[1] - self.position[0]},{_info[2]},{min(_info[3], _info[4])}]"
+            return f"MotifDeletion[{self.position[0]},{rbps},{self.get_size()},{_info[2]},{min(_info[3], _info[4])}]"
 
     @dataclass
     class MotifInsertion(DiffUnit):
@@ -375,20 +384,31 @@ def create_motif_grammar(
         def __str__(self):
             return f"MotifInsertion[{self.position},{self.nucleotides[0]},{self.get_size()},{self.get_location()},{self.get_distance_to_cassette()}]"
 
-    return extract_grammar(
+    g = extract_grammar(
         [
             weight(kwargs["snv_weight"])(MotifSNV),
             weight(kwargs["deletion_weight"])(MotifDeletion),
             weight(kwargs["insertion_weight"])(MotifInsertion),
         ],
         DiffSequence,
-    ), EXCLUDED_REGIONS
+    )
+    g._type = "motif_based"
+    return g, EXCLUDED_REGIONS
 
 
 def _dict_to_df(d: dict) -> pd.DataFrame:
     return pd.DataFrame(
         {
+            "Run_id": [
+                d["seq_id"]
+                .replace(":", "_")
+                .replace("(+)", "")
+                .replace("(-)", "")
+                .replace("-", "_")
+            ],
+            "Seed": [0],
             "Seq_id": [d["seq_id"]],
+            "Phenotype": ["wt"],
             "Sequence": [d["seq"]],
             "Splice_site_positions": [
                 ";".join([str(x) for sublist in d["ss_idx"] for x in sublist])
@@ -435,15 +455,17 @@ def _structure_motif_info(
     kwargs["logger"].info(
         f"{per_position_info_agg.shape[0]}/{seqsize} ({per_position_info_agg.shape[0] / seqsize * 100:.2f}%) positions with motifs"
     )
-    motif2snv = per_position_info_agg[
-        ~per_position_info_agg.position.isin(_excluded_r)
-    ]
+    motif2snv = per_position_info_agg[~per_position_info_agg.position.isin(_excluded_r)]
 
     kwargs["logger"].info(
         f"{per_position_info_agg.shape[0] - motif2snv.shape[0]} positions with motifs will not be used due to overlapping with excluded regions."
     )
     motif2dels = motif_intervals.values.tolist()
-    motif2dels = [el for el in motif2dels if not any(x in _excluded_r for x in range(el[0], el[1]))]   
+    motif2dels = [
+        el
+        for el in motif2dels
+        if not any(x in _excluded_r for x in range(el[0], el[1]))
+    ]
     return motif2snv, motif2dels, motif2ins
 
 

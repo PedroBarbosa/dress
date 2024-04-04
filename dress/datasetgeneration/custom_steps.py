@@ -8,7 +8,12 @@ from geneticengine.core.problems import Problem
 
 from geneticengine.core.grammar import Grammar
 
-from dress.datasetgeneration.grammars.random_perturbation_grammar import DiffUnit
+from dress.datasetgeneration.grammars.random_perturbation_grammar import (
+    DiffUnit as RandomDiffUnit,
+)
+from dress.datasetgeneration.grammars.pwm_perturbation_grammar import (
+    DiffUnit as MotifDiffUnit,
+)
 
 
 def custom_mutation_operator(
@@ -23,108 +28,129 @@ def custom_mutation_operator(
     Returns:
         GenericMutationStep: A step that applies a mutation operator to the population
     """
-    assert "max_deletion_size" in kwargs
-    assert "max_insertion_size" in kwargs
 
     seq = input_seq["seq"]
     seq_size = len(seq)
     root = grammar.starting_symbol
-    options = grammar.alternatives[DiffUnit]
-    SNV = options[0]
-    RandomDeletion = options[1]
-    RandomInsertion = options[2]
+    if grammar._type == "random":
+        options = grammar.alternatives[RandomDiffUnit]
+    elif grammar._type == "motif_based":
+        options = grammar.alternatives[MotifDiffUnit]
 
-    class NearbyReplacementOperator(MutationOperator[root]):
-        """Custom mutation operator that replaces a diff unit
-        of a given type with another diff unit of the same type.
-        The replacement occurs at a location very close to the
-        original, chosen from a normal distribution centered around
-        the original position.
+    snv = options[0].__name__
+    deletion = options[1].__name__
+    insertion = options[2].__name__
 
-        This operator ensures some constrains for the replacement:
-            - For SNVs, the position is different.
-            - For deletions, the start position is different if max_deletion_size is 1.
-        If max_deletion_size is > 1, the deletion is different.
-            - For insertions, the position is different.
-        """
+    if grammar._type == "random":
+        assert "max_deletion_size" in kwargs
+        assert "max_insertion_size" in kwargs
+        max_deletion_size = kwargs["max_deletion_size"]
+        max_insertion_size = kwargs["max_insertion_size"]
 
-        def mutate(
-            self,
-            genotype: root,  # type: ignore
-            problem: Problem,
-            evaluator: Evaluator,
-            representation: Representation,
-            random_source: Source,
-            index_in_population: int,
-            generation: int,
-        ) -> root:  # type: ignore
-            nucleotides = ["A", "C", "G", "T"]
-            weights = [0.3, 0.2, 0.2, 0.3]
+        class MotifReplacementOperator(MutationOperator[root]):
+            """Custom mutation operator that replaces a diff unit
+            of a given type with another diff unit of the same type.
+            The replacement occurs at a location very close to the
+            original, chosen from a normal distribution centered around
+            the original position.
 
-            cpy = deepcopy(genotype)
-            el = random_source.randint(0, len(cpy.diffs) - 1)  # type: ignore
-            to_be_mutated = cpy.diffs[el]  # type: ignore
+            This operator ensures some constrains for the replacement:
+                - For SNVs, the position is different.
+                - For deletions, the start position is different if max_deletion_size is 1.
+            If max_deletion_size is > 1, the deletion is different.
+                - For insertions, the position is different.
+            """
 
-            if isinstance(to_be_mutated, SNV):
-                pos = int(random_source.normalvariate(to_be_mutated.position, 4))
-                nuc = random_source.choice(nucleotides)  # type: ignore
+            def mutate(
+                self,
+                genotype: root,  # type: ignore
+                problem: Problem,
+                evaluator: Evaluator,
+                representation: Representation,
+                random_source: Source,
+                index_in_population: int,
+                generation: int,
+            ) -> root:  # type: ignore
+                nucleotides = ["A", "C", "G", "T"]
+                weights = [0.3, 0.2, 0.2, 0.3]
 
-                while (
-                    not 0 <= pos < seq_size
-                    or pos == to_be_mutated.position
-                    or seq[pos] == nuc
-                ):
+                cpy = deepcopy(genotype)
+                el = random_source.randint(0, len(cpy.diffs) - 1)  # type: ignore
+                to_be_mutated = cpy.diffs[el]  # type: ignore
+
+                if type(to_be_mutated).__name__ == snv:
                     pos = int(random_source.normalvariate(to_be_mutated.position, 4))
                     nuc = random_source.choice(nucleotides)  # type: ignore
 
-                to_be_mutated.position = pos
-                to_be_mutated.nucleotide = nuc
+                    while (
+                        not 0 <= pos < seq_size
+                        or pos == to_be_mutated.position
+                        or seq[pos] == nuc
+                    ):
+                        pos = int(
+                            random_source.normalvariate(to_be_mutated.position, 4)
+                        )
+                        nuc = random_source.choice(nucleotides)  # type: ignore
 
-            elif isinstance(to_be_mutated, RandomDeletion):
-                max_size = kwargs["max_deletion_size"]
-                if max_size == 1:
-                    size = 1
+                    to_be_mutated.position = pos
+                    to_be_mutated.nucleotide = nuc
+
+                elif type(to_be_mutated).__name__ == deletion:
+                    max_size = max_deletion_size
+                    if max_size == 1:
+                        size = 1
+                        pos = int(
+                            random_source.normalvariate(to_be_mutated.position, 4)
+                        )
+
+                        while not 0 <= pos < seq_size or pos == to_be_mutated.position:
+                            pos = int(
+                                random_source.normalvariate(to_be_mutated.position, 4)
+                            )
+
+                    else:
+                        size = random_source.randint(1, max_size)
+
+                        # Mean is the middle position of the deletion
+                        mean_pos = (
+                            to_be_mutated.position
+                            + to_be_mutated.position
+                            + to_be_mutated.size
+                            - 1
+                        ) // 2
+                        pos = int(random_source.normalvariate(mean_pos, 4))
+
+                        while (
+                            not 0 <= pos < seq_size - size or size == to_be_mutated.size
+                        ):
+                            pos = int(random_source.normalvariate(mean_pos, 4))
+                            size = random_source.randint(1, max_size)
+
+                    to_be_mutated.position = pos
+                    to_be_mutated.size = size
+
+                elif type(to_be_mutated).__name__ == insertion:
+                    max_size = max_insertion_size
                     pos = int(random_source.normalvariate(to_be_mutated.position, 4))
-
                     while not 0 <= pos < seq_size or pos == to_be_mutated.position:
                         pos = int(
                             random_source.normalvariate(to_be_mutated.position, 4)
                         )
 
-                else:
                     size = random_source.randint(1, max_size)
+                    nuc = "".join(
+                        random_source.choice_weighted(nucleotides, weights)
+                        for _ in range(size)
+                    )
 
-                    # Mean is the middle position of the deletion
-                    mean_pos = (
-                        to_be_mutated.position
-                        + to_be_mutated.position
-                        + to_be_mutated.size
-                        - 1
-                    ) // 2
-                    pos = int(random_source.normalvariate(mean_pos, 4))
+                    to_be_mutated.position = pos
+                    to_be_mutated.nucleotides = nuc
 
-                    while not 0 <= pos < seq_size - size or size == to_be_mutated.size:
-                        pos = int(random_source.normalvariate(mean_pos, 4))
-                        size = random_source.randint(1, max_size)
+                return cpy
 
-                to_be_mutated.position = pos
-                to_be_mutated.size = size
+        return MotifReplacementOperator()
 
-            elif isinstance(to_be_mutated, RandomInsertion):
-                max_size = kwargs["max_insertion_size"]
-                pos = int(random_source.normalvariate(to_be_mutated.position, 4))
-                while not 0 <= pos < seq_size or pos == to_be_mutated.position:
-                    pos = int(random_source.normalvariate(to_be_mutated.position, 4))
-
-                size = random_source.randint(1, max_size)
-                nuc = "".join(
-                    random_source.choice_weighted(nucleotides, weights)
-                    for _ in range(size)
-                )
-
-                to_be_mutated.position = pos
-                to_be_mutated.nucleotides = nuc
-
-            return cpy
-
-    return NearbyReplacementOperator()
+    elif grammar._type == "motif_based":
+        raise ValueError(
+            "Custom mutation operator not implemented for motif_based grammars"
+        )

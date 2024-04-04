@@ -60,6 +60,7 @@ from geneticengine.core.representations.tree.treebased import TreeBasedRepresent
 
 from dress.datasetgeneration.os_utils import dump_yaml
 
+
 def _is_valid_individual(
     ind: Individual, seq: str, regions: List[range], r: RandomSource
 ) -> bool:
@@ -266,10 +267,18 @@ def configureEvolution(
 
     # MutationStep
     mut_prob = kwargs["mutation_probability"]
-    if kwargs["custom_mutation_operator"]:
+    if (
+        grammar._type == "random"
+        and kwargs["custom_mutation_operator"]
+        and kwargs["custom_mutation_operator_weight"] > 0.0
+    ):
+
         mutation_operator = custom_mutation_operator(grammar, input_seq, **kwargs)
 
-        if kwargs["custom_mutation_operator_weight"] < 1:
+        if kwargs["custom_mutation_operator_weight"] == 1.0:
+            mutation_step = GenericMutationStep(mut_prob, operator=mutation_operator)
+
+        else:
             custom_weight = kwargs["custom_mutation_operator_weight"]
             default_weight = 1 - custom_weight
             with_default_operator = GenericMutationStep(mut_prob)
@@ -281,14 +290,11 @@ def configureEvolution(
                 weights=[custom_weight, default_weight],
             )
 
-        else:
-            mutation_step = GenericMutationStep(mut_prob, operator=mutation_operator)
     else:
         mutation_step = GenericMutationStep(mut_prob)
 
     # CrossoverStep
     crossover_step = GenericCrossoverStep(kwargs["crossover_probability"])
-
 
     representation = TreeBasedRepresentation(grammar, max_depth=3)
     phenotypeCorrector = configPhenotypeCorrector(
@@ -405,7 +411,7 @@ def configureEvolution(
         stopping_criterium = AnyOfStoppingCriterium(all_stopping_criteria)
 
     # Callbacks
-    callbacks: List[Callback] = [] #[PrintBestCallbackWithGeneration()]
+    callbacks: List[Callback] = []  # [PrintBestCallbackWithGeneration()]
 
     if len(kwargs["operators_weight"]) > 1:
         update_at = sorted(kwargs["update_weights_at_generation"])
@@ -478,7 +484,7 @@ def configureEvolution(
         )
 
     if os.path.isdir(kwargs["outdir"]):
-        kwargs.pop('logger')
+        kwargs.pop("logger")
         dump_yaml(os.path.join(kwargs["outdir"], "args_used.yaml"), **kwargs)
 
     return (

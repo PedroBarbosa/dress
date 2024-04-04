@@ -68,6 +68,10 @@ def create_random_grammar(
     max_diff_units = kwargs.get("max_diff_units", 6)
     max_insertion_size = kwargs.get("max_insertion_size", 5)
     max_deletion_size = kwargs.get("max_deletion_size", 5)
+    snv_weight = kwargs.get("snv_weight", 0.33)
+    insertion_weight = kwargs.get("insertion_weight", 0.33)
+    deletion_weight = kwargs.get("deletion_weight", 0.33)
+
     LOCATION_MAP = _get_location_map(input_seq)
     EXCLUDED_REGIONS = _get_forbidden_zones(
         input_seq,
@@ -342,11 +346,13 @@ def create_random_grammar(
         def __str__(self):
             return f"Insertion[{self.position},{self.nucleotides},{self.get_location(LOCATION_MAP)},{self.get_distance_to_cassette(LOCATION_MAP)}]"
 
-    return extract_grammar(
+    g = extract_grammar(
         [
-            weight(kwargs['snv_weight'])(SNV),
-            weight(kwargs['deletion_weight'])(Deletion),
-            weight(kwargs['insertion_weight'])(Insertion),
+            weight(snv_weight)(SNV),
+            weight(deletion_weight)(Deletion),
+            weight(insertion_weight)(Insertion),
         ],
         DiffSequence,
-    ), EXCLUDED_REGIONS
+    )
+    g._type = "random"
+    return g, EXCLUDED_REGIONS
