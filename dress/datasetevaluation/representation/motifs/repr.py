@@ -50,12 +50,12 @@ class MotifRepresentation(Representation):
             row: pd.Series,
         ) -> SingleSequenceMotifs:
             if row.group == self.group:
-                original_seq = self.sequence
-                original_ss_idx = self.splice_sites
+                original_seq = self.wt_sequence
+                original_ss_idx = self.wt_splice_sites
 
             elif row.group == self.group2:
-                original_seq = self.sequence2
-                original_ss_idx = self.splice_sites2
+                original_seq = self.wt_sequence2
+                original_ss_idx = self.wt_splice_sites2
 
             else:
                 raise ValueError("Group not found")

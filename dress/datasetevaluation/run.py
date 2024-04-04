@@ -171,12 +171,22 @@ def motif_extra_options(fun):
 
     return fun
 
+def motif_enrichment_options(fun):
+    fun = click.option(
+        "-me",
+        "--motif_enrichment",
+        type=click.Choice(["streme"]),
+        default="streme",
+        help="Method to perform motif enrichment. Default: 'streme'.",
+    )(fun)
+    return fun
 
 @click.command(name="evaluate")
 @click.argument("evaluator", type=click.Choice(["phenotypes", "sequences", "motifs"]))
 @input_options
 @motif_core_options
 @motif_extra_options
+@motif_enrichment_options
 @click.option(
     "-cf",
     "--config",
@@ -203,6 +213,7 @@ def evaluate(**args):
         generated_datasets=[args["dataset"], args["another_dataset"]],
         **args,
     )
+    print(dataset_obj)
 
     # dump_yaml(os.path.join(args["outdir"], "args_used.yaml"), **args)
     args.pop("dataset")

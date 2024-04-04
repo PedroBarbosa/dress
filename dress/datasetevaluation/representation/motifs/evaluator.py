@@ -17,7 +17,7 @@ from dress.datasetevaluation.representation.motifs.search import (
     PlainSearch,
 )
 from dress.datasetevaluation.representation.motifs.enrichment import (
-    FisherEnrichment,
+    StremeEnrichment,
 )
 
 MOTIF_COUNTS_TO_USE = {"gene": 0, "motif": 1}
@@ -30,7 +30,7 @@ MOTIF_SEARCH_OPTIONS = {
 }
 
 MOTIF_ENRICHMENT_OPTIONS = {
-    "fisher": FisherEnrichment,
+    "streme": StremeEnrichment,
 }
 
 
@@ -51,15 +51,11 @@ class MotifEvaluator(Evaluator):
         self.counts_to_use = kwargs.get("motif_counts", "gene")
 
         motif_searcher = MOTIF_SEARCH_OPTIONS.get(kwargs.get("motif_search"))
-        self.motif_search = motif_searcher(dataset=data, **kwargs)
-
+        self.motif_search = motif_searcher(dataset=data, skip_location_mapping=True, **kwargs)
         self.motif_counts = self.motif_search.tabulate_occurrences(write_output=True)
 
         motif_enricher = MOTIF_ENRICHMENT_OPTIONS.get(kwargs.get("motif_enrichment"))
-
-        self.motif_enrichment = motif_enricher(
-            self.motif_counts[MOTIF_COUNTS_TO_USE[self.counts_to_use]], **kwargs
-        )
+        self.motif_enrichment = motif_enricher(data, **kwargs)
 
         if not disable_motif_representation:
             MotifRepresentation.set_save_plots(self.save_plots)
