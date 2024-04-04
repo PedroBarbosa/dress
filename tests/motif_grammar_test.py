@@ -15,7 +15,7 @@ from dress.datasetgeneration.grammars.pwm_perturbation_grammar import (
 from dress.datasetgeneration.logger import setup_logger
 from tests.random_grammar_test import _get_input_data
 
-motif_matches = pd.read_csv(os.path.dirname(os.path.abspath(__file__)) + "/data/motif_matches.csv.gz", sep="\t")
+motif_matches = pd.read_csv(f"{os.path.dirname(os.path.abspath(__file__))}/data/motif_matches.csv.gz", sep="\t")
 
 def get_grammar(subset_rbps: Union[list, str] = None):
     toy_grammar, excluded_r = create_motif_grammar(

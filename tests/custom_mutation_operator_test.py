@@ -18,13 +18,13 @@ def fitness_function(diffs) -> float:
 
 
 g, excluded_r = create_random_grammar(
+    input_seq=input_seq,
     max_diff_units=6,
     snv_weight=0.33,
     insertion_weight=0.33,
     deletion_weight=0.33,
     max_insertion_size=5,
     max_deletion_size=5,
-    input_seq=input_seq,
 )
 
 
@@ -32,14 +32,18 @@ p = SingleObjectiveProblem(minimize=False, fitness_function=fitness_function)
 repr = TreeBasedRepresentation(g, max_depth=3)
 rs = RandomSource(0)
 
-nearby_mutation_operator = custom_mutation_operator(
-    g, input_seq, **{"max_insertion_size": 5, "max_deletion_size": 5}
-)
-custom_mutation_step = GenericMutationStep(1, operator=nearby_mutation_operator)
 
+class TestRandomGrammar:
+    def test_snv_motif_replacement(self):
+        g, _ = create_random_grammar(
+            input_seq=input_seq
+        )
 
-class TestCustomMutationOperator:
-    def test_nearby_replacement(self):
+        motif_mutation_operator = custom_mutation_operator(
+            g, input_seq, **{"max_insertion_size": 5, "max_deletion_size": 5}
+        )
+        custom_mutation_step = GenericMutationStep(1, operator=motif_mutation_operator)
+
         population = [
             Individual(
                 genotype=repr.create_individual(r=rs, g=g),
@@ -58,7 +62,9 @@ class TestCustomMutationOperator:
 
             changed_diffunit = 0
             for prev_diffs, diffs in zip(prev_ph.diffs, ph.diffs):
+                assert diffs.__class__ == prev_diffs.__class__
                 if prev_diffs != diffs:
+
                     changed_diffunit += 1
                     # The most distant position observed is 12
                     assert abs(prev_diffs.position - diffs.position) <= 12
