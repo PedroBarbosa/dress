@@ -49,13 +49,14 @@ class DiffUnit(ABC):
 
 def create_random_grammar(
     input_seq: dict,
+    excluded_regions: list = None,
     **kwargs
 ) -> Tuple[Grammar, List[range]]:
     """Creates a grammar for the original sequence
 
     Args:
         input_seq (dict): Info about the input sequence
-
+        excluded_regions (list, optional): List of ranges that cannot be perturbed. Defaults to None.
     Returns:
         Grammar: Returns the grammar that specifies the production rules of the language
         List[range]: List of ranges that cannot be perturbed
@@ -69,14 +70,17 @@ def create_random_grammar(
     deletion_weight = kwargs.get("deletion_weight", 0.33)
 
     LOCATION_MAP = _get_location_map(input_seq)
-    EXCLUDED_REGIONS = _get_forbidden_zones(
-        input_seq,
-        region_ranges=LOCATION_MAP,
-        acceptor_untouched_range=kwargs.get("acceptor_untouched_range", [-10, 2]),
-        donor_untouched_range=kwargs.get("donor_untouched_range", [-3, 6]),
-        untouched_regions=kwargs.get("untouched_regions", None),
-        model=kwargs.get("model", "spliceai"),
-    )
+    if excluded_regions is None:
+        EXCLUDED_REGIONS = _get_forbidden_zones(
+            input_seq,
+            region_ranges=LOCATION_MAP,
+            acceptor_untouched_range=kwargs.get("acceptor_untouched_range", [-10, 2]),
+            donor_untouched_range=kwargs.get("donor_untouched_range", [-3, 6]),
+            untouched_regions=kwargs.get("untouched_regions", None),
+            model=kwargs.get("model", "spliceai"),
+        )
+    else:
+        EXCLUDED_REGIONS = excluded_regions
 
     @dataclass
     class DiffSequence(object):

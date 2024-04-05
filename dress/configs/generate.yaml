@@ -4,6 +4,7 @@ generate:
   dry_run: false
   verbosity: 0
   seed: 0
+  shuffle_input: null
   model: 'spliceai'
   model_scoring_metric: 'mean'
   pangolin_mode: 'ss_usage'

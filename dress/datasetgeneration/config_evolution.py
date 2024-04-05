@@ -233,7 +233,10 @@ def configureEvolution(
         GP: A Genetic Programming object to be evolved
         Archive: An archive object with the archive to be filled
     """
-    random_source = RandomSource(kwargs["seed"])
+    if "rs" not in kwargs:
+        random_source = RandomSource(kwargs.get("seed", 0))
+    else:
+        random_source = kwargs["rs"]
 
     if kwargs["selection_method"] == "tournament":
         parent_selection = TournamentSelection(kwargs["tournament_size"])

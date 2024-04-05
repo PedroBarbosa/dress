@@ -2,14 +2,6 @@ from typing import List, Union
 from geneticengine.core.random.sources import RandomSource
 import numpy as np
 
-REGION_MAP = {
-    "exon_upstream": "Exon_upstream",
-    "intron_upstream": "Intron_upstream",
-    "target_exon": "Exon_cassette",
-    "intron_downstream": "Intron_downstream",
-    "exon_downstream": "Exon_downstream",
-}
-
 
 def _get_forbidden_zones(
     input_seq: dict,
@@ -34,7 +26,7 @@ def _get_forbidden_zones(
 
     Args:
         input_seq (dict): Original sequence
-        location_map (dict): Mapping of the indices where each region locates
+        region_ranges (dict): Mapping of the indices where each region locates
         acceptor_untouched_range (List[int]): Range of positions surrounding
         the acceptor splice site that will not be mutated
         donor_untouched_range (List[int]): Range of positions surrounding
@@ -43,7 +35,7 @@ def _get_forbidden_zones(
         regions of the sequence. Defaults to None.
         model (str): Black box model
     Returns:
-        List: Restricted intervals that will not be mutated
+        List: Non-overlapping sorted intervals that will not be perturbed
     """
     seq = input_seq["seq"]
     ss_idx = input_seq["ss_idx"]
@@ -60,7 +52,7 @@ def _get_forbidden_zones(
     down_donor = ss_idx[2][1]
     if isinstance(upst_accept, int) and upst_accept > 0:
         out.append(range(0, upst_accept))
-    
+
     if isinstance(down_donor, int) and down_donor < len(seq) - 1:
         out.append(range(down_donor + 1, len(seq)))
 
@@ -87,14 +79,14 @@ def _get_forbidden_zones(
 
     if untouched_regions:
         for region in untouched_regions:
+
             try:
-                region = REGION_MAP[region]
+                region = region.capitalize()
+                _range = region_ranges[region]
+
             except KeyError:
-                raise ValueError(
-                    f"Region {region} not recognized. "
-                    f"Choose from {list(region_ranges.keys())}"
-                )
-            _range = region_ranges[region]
+                raise ValueError(f"Region {region} not recognized.")
+            
             if all(x == "<NA>" for x in _range):
                 continue
             elif _range[0] == "<NA>":
@@ -104,8 +96,20 @@ def _get_forbidden_zones(
 
             out.append(range(_range[0], _range[1] + 1))
 
+    if out:
+        out = sorted(out, key=lambda x: x.start)
+        merged = [out[0]]
+        for interval in out[1:]:
+            _start, _end = interval.start, interval.stop
+            previous = merged[-1]
+            if _start <= previous.stop:
+                merged[-1] = range(previous.start, max(previous.stop, _end))
+            else:
+                merged.append(interval)
+
+        return merged
+
     return out
-    # return sorted(list(set(num for _range in out for num in _range)))
 
 
 def _get_location_map(input_seq: dict) -> dict:
@@ -141,15 +145,18 @@ def _get_location_map(input_seq: dict) -> dict:
         ),
     }
 
-def random_seq(seq: str, rs: Union[RandomSource, None] = None, num_shufs: int = 1) -> Union[str, List[str]]:
+
+def random_seq(
+    seq: str, rs: Union[RandomSource, None] = None, num_shufs: int = 1
+) -> Union[str, List[str]]:
     """
     Create a random sequence of the same length as the input sequence.
-    
+
     Args:
         seq (str): Sequence to extract the target size
         rs (Union[RandomSource, None]): RandomSource object. Defaults to None.
         num_shufs (int): Number of shuffles to create. Defaults to 1.
-    
+
     Returns:
         Union[str, List[str]]: a single random sequence if num_shufs is 1, or a list of random sequences if num_shufs > 1
     """
@@ -159,10 +166,13 @@ def random_seq(seq: str, rs: Union[RandomSource, None] = None, num_shufs: int = 
 
     all_results = []
     for _ in range(num_shufs):
-        all_results.append(''.join(rs.choice(nucs) for _ in range(len(seq))))
+        all_results.append("".join(rs.choice(nucs) for _ in range(len(seq))))
     return all_results if num_shufs > 1 else all_results[0]
 
-def shuffle(seq: str, rs: Union[RandomSource, None] = None, num_shufs: int = 1) -> Union[str, List[str]]:
+
+def shuffle(
+    seq: str, rs: Union[RandomSource, None] = None, num_shufs: int = 1
+) -> Union[str, List[str]]:
     """
     Shuffle the given sequence.
 
@@ -178,16 +188,19 @@ def shuffle(seq: str, rs: Union[RandomSource, None] = None, num_shufs: int = 1) 
         rs = RandomSource(0)
     all_results = []
     for _ in range(num_shufs):
-        all_results.append(''.join(rs.shuffle(list(seq)))) 
+        all_results.append("".join(rs.shuffle(list(seq))))
     return all_results if num_shufs > 1 else all_results[0]
 
-def dinuc_shuffle(seq: str, rs: Union[RandomSource, None] = None, num_shufs: int = 1) -> Union[str, List[str]]:
+
+def dinuc_shuffle(
+    seq: str, rs: Union[RandomSource, None] = None, num_shufs: int = 1
+) -> Union[str, List[str]]:
     """
     Adapted from https://github.com/kundajelab/deeplift/blob/master/deeplift/dinuc_shuffle.py
 
     Creates shuffles of the given sequence, in which dinucleotide frequencies
     are preserved.
-    
+
     Args:
         seq (str): a string of length L
         rs (Union[RandomSource, None]): a geneticEngine RandomSource object, to use for performing shuffles
@@ -201,7 +214,7 @@ def dinuc_shuffle(seq: str, rs: Union[RandomSource, None] = None, num_shufs: int
 
     if not rs:
         rs = RandomSource(0)
-    
+
     # Get the set of all characters, and a mapping of which positions have which
     # characters; use `tokens`, which are integer representations of the
     # original characters
@@ -220,7 +233,7 @@ def dinuc_shuffle(seq: str, rs: Union[RandomSource, None] = None, num_shufs: int
         # Shuffle the next indices
         for t in range(len(chars)):
             inds = np.arange(len(shuf_next_inds[t]))
-            inds[:-1] = rs.shuffle(list(range(len(inds) - 1))) # Keep last index same
+            inds[:-1] = rs.shuffle(list(range(len(inds) - 1)))  # Keep last index same
 
             shuf_next_inds[t] = shuf_next_inds[t][inds]
 
@@ -247,6 +260,7 @@ def string_to_char_array(seq):
     e.g. "ACGT" becomes [65, 67, 71, 84].
     """
     return np.frombuffer(bytearray(seq, "utf8"), dtype=np.int8)
+
 
 def char_array_to_string(arr):
     """

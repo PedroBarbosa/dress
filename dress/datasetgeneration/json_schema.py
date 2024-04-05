@@ -8,6 +8,7 @@ schema = {
                 "dry_run": {"type": "boolean"},
                 "disable_gpu": {"type": "boolean"},
                 "verbosity": {"type": "integer"},
+                "shuffle_input": {"type": ["null", "string"]},
                 "outdir": {"type": "string"},
                 "outbasename": {"type": ["null", "string"]},
                 "seed": {"type": "integer"},

@@ -14,6 +14,7 @@ from dress.datasetgeneration.os_utils import (
 from dress.datasetgeneration.evolution import (
     do_evolution,
     get_score_of_input_sequence,
+    shuffle_input_sequence,
 )
 from dress.datasetgeneration.preprocessing.utils import (
     process_ss_idx,
@@ -229,7 +230,7 @@ def evo_alg_options_generate(fun):
         #     ["n_evaluations", "n_generations", "time", "archive_quality", "archive_size", "archive_diversity"],
         #     case_sensitive=True,
         # ),
-        metavar=f"STRING + ... e.g. -sc n_evaluations n_generations. ({'|'.join(['n_evaluations', 'n_generations', 'time', 'archive_quality', 'archive_size', 'archive_diversity'])})",
+        metavar=f"STRING + ... e.g. -sc n_evaluations n_generations. ({'|'.join(['n_evaluations', 'n_generations', 'time', 'archive_quality', 'archive_size', 'archive_diversity'])}",
         help="Criteria to stop evolution. If multiple criteria are given evolution will "
         "end when any or all the criteria are met, according to the '--stop_when_all' arg. "
         "Default: ['archive_size', 'time'], evolution finishes when one of the criterium "
@@ -375,7 +376,7 @@ def grammar_options(fun):
         " a grammar that generates random perturbations in the sequence. If 'motif_based', the grammar will"
         " generate perturbations based on motifs from position weight matrices (PWMs).",
     )(fun)
-    
+
     fun = click.option(
         "-mdu",
         "--max_diff_units",
@@ -457,10 +458,10 @@ def grammar_options(fun):
         cls=OptionEatAll,
         type=tuple,
         # type=click.Choice(
-        #    ['exon_upstream', 'intron_upstream', 'target_exon', 'intron_downstream', 'exon_downstream'],
+        #    ['exon_upstream', 'intron_upstream', 'exon_cassette', 'intron_downstream', 'exon_downstream'],
         #     case_sensitive=True,
         # ),
-        metavar=f"STRING + ... e.g. -sc exon_upstream exon_downstream. ({'|'.join(['exon_upstream', 'intron_upstream', 'target_exon', 'intron_downstream', 'exon_downstream'])})",
+        metavar=f"STRING + ... e.g. -sc exon_upstream exon_downstream. ({'|'.join(['exon_upstream', 'intron_upstream', 'exon_cassette', 'intron_downstream', 'exon_downstream'])}",
         help="Region(s) within the exon triplet that should stay untouched in the "
         "evolutionary search.",
     )(fun)
@@ -480,7 +481,7 @@ def grammar_options(fun):
         default=5,
         help="Max size of a deletion allowed when '--which_grammar' is 'random'. Default: 5",
     )(fun)
-   
+
     fun = click.option(
         "-mdb",
         "--motif_db",
@@ -542,6 +543,17 @@ def grammar_options(fun):
 @click.argument(
     "input",
     type=click.Path(exists=True, resolve_path=True),
+)
+@click.option(
+    "-si",
+    "--shuffle_input",
+    type=click.Choice(["dinuc_shuffle", "shuffle", "random"], case_sensitive=True),
+    default=None,
+    help="Shuffle input sequence(s) using one of three strategies. 'dinuc_shuffle' will shuffle the input sequence by keeping "
+        "the same dinucleotide frequencies as the original sequence. 'shuffle' will shuffle the input sequence such that "
+        "the frequency of each nucleotide remains the same. 'random' will generate a random sequence of the same size of the "
+        "input. Default: 'None', don't shuffle input. Importantly, restrictions on the search space ('--untouched_regions', "
+        "'--acceptor_untouched_range', '--donor_untouched_range') will remain unshuffled.",
 )
 @click.option(
     "-od",
@@ -620,7 +632,7 @@ def generate(**args):
     If any of the tabular option is provided (txt|tab|tsv), it expects a header line with informative column names.)
     """
     args = check_args(args)
-    args['logger'] = setup_logger(level=int(args["verbosity"]))
+    args["logger"] = setup_logger(level=int(args["verbosity"]))
     os.makedirs(args["outdir"], exist_ok=True)
 
     if any(args["input"].endswith(ext) for ext in ["fa", "fasta"]):
@@ -641,7 +653,7 @@ def generate(**args):
         )
 
         seqs, ss_idx = preprocessing(df, **args)
-        
+
     else:
         raise NotImplementedError(
             "Input file format not recognized [only *fa, *fasta, *bed, *tsv *txt, *tab allowed]."
@@ -675,9 +687,9 @@ def generate(**args):
             outbasename = re.sub(r"[:-]", "_", _seq_id)
             args["outbasename"] = outbasename
 
-        args['logger'].info(f"Starting seq {seq_id}")
-        args['logger'].info(f"Sequence length: {len(SEQ)}")
-        args['logger'].info(f"Splice site indexes: {ss_idx[seq_id]}")
+        args["logger"].info(f"Starting seq {seq_id}")
+        args["logger"].info(f"Sequence length: {len(SEQ)}")
+        args["logger"].info(f"Splice site indexes: {ss_idx[seq_id]}")
         _input = {
             "seq_id": seq_id,
             "seq": SEQ,
@@ -689,12 +701,13 @@ def generate(**args):
         outdatasetfn = (
             f"{args['outdir']}/{outbasename}_seed_{args['seed']}_dataset.csv.gz"
         )
-        args['logger'].info("Calculating original score")
+        args["logger"].info("Calculating original score")
         _input = get_score_of_input_sequence(_input, **args)
-        args['logger'].info(f"Original score: {_input['score']:.4f}")
-        
+        _input, excluded_r, rs = shuffle_input_sequence(_input, **args)
+        args["rs"] = rs
+
         write_input_seq(_input, outoriginalfn)
-        archive = do_evolution(_input, **args)
+        archive = do_evolution(_input, excluded_r, **args)
         dataset = return_dataset(input_seq=_input, archive=archive)
 
         write_dataset(

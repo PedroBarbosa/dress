@@ -8,6 +8,7 @@ GENERATE_GROUP_OPTIONS = {
         {
             "name": "Input / Output options",
             "options": [
+                "--shuffle_input",
                 "--outdir",
                 "--outbasename",
                 "--cache_dir",
