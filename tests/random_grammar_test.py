@@ -12,6 +12,7 @@ from dress.datasetgeneration.grammars.random_perturbation_grammar import (
     create_random_grammar,
 )
 
+
 def _get_input_data() -> dict:
     TOY_SS_IDX = [[100, 161], [314, 376], [1560, 1642]]
     rename = {
@@ -21,7 +22,9 @@ def _get_input_data() -> dict:
         "Score": "score",
     }
     data = (
-        pd.read_csv(f"{os.path.dirname(os.path.abspath(__file__))}/data/dataset_original_seq.csv")
+        pd.read_csv(
+            f"{os.path.dirname(os.path.abspath(__file__))}/data/dataset_original_seq.csv"
+        )
         .rename(columns=rename)
         .iloc[0]
         .to_dict()
@@ -29,8 +32,11 @@ def _get_input_data() -> dict:
     data["ss_idx"] = TOY_SS_IDX
     return data
 
+
+input_seq = _get_input_data()
+wt_seq = input_seq["seq"]
 toy_grammar, excluded_r = create_random_grammar(
-    input_seq=_get_input_data(),
+    input_seq=input_seq,
     max_diff_units=6,
     snv_weight=0.33,
     insertion_weight=0.33,
@@ -104,13 +110,17 @@ class TestGrammarStructure:
     def test_leaf_object(self):
         for i in range(10):
             r = RandomSource(seed=i)
+
+            # SNV
             g = extract_grammar([SNV], DiffSequence)
             x = random_node(r, g, max_depth=2, starting_symbol=DiffSequence)
 
-            for diff in x.diffs:
-                assert isinstance(diff.position, int)
-                assert isinstance(diff.nucleotide, str)
+            for x in x.diffs:
+                assert isinstance(x.position, int)
+                assert isinstance(x.nucleotide, str)
+                assert len(x.perturb(wt_seq, 0)) == len(wt_seq)
 
+            # Del
             g = extract_grammar([Deletion], DiffSequence)
             x = random_node(r, g, max_depth=2, starting_symbol=DiffSequence)
 
@@ -118,7 +128,13 @@ class TestGrammarStructure:
                 assert isinstance(x.position, int)
                 assert isinstance(x.size, int)
                 assert x.size <= 5
+                new_seq = x.perturb(wt_seq, 0)
+                assert (
+                    len(new_seq) < len(wt_seq)
+                    and len(wt_seq) - len(new_seq) == x.get_size()
+                )
 
+            # Ins
             g = extract_grammar([Insertion], DiffSequence)
             x = random_node(r, g, max_depth=2, starting_symbol=DiffSequence)
 
@@ -126,6 +142,11 @@ class TestGrammarStructure:
                 assert isinstance(x.position, int)
                 assert isinstance(x.nucleotides, str)
                 assert len(x.nucleotides) <= 5
+                new_seq = x.perturb(wt_seq, 0)
+                assert (
+                    len(new_seq) > len(wt_seq)
+                    and len(new_seq) - len(wt_seq) == x.get_size()
+                )
 
     def test_phenotype(self):
         for i in range(10):
@@ -134,9 +155,9 @@ class TestGrammarStructure:
             x = random_node(r, g, max_depth=2, starting_symbol=DiffSequence)
 
             for diffunit in x.diffs:
-                rgex = re.search(f'\[(.*?)\]', str(diffunit))
-                assert len(rgex.group(1).split(',')) == 4
-   
+                rgex = re.search(f"\[(.*?)\]", str(diffunit))
+                assert len(rgex.group(1).split(",")) == 4
+
     def test_invalid_node(self):
         with pytest.raises(Exception):
             extract_grammar([SNV, DiffUnit, Useless], DiffSequence)

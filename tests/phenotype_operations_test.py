@@ -25,7 +25,7 @@ DiffSequence = toy_grammar.starting_symbol
 SNV = toy_grammar.alternatives[DiffUnit][0]
 Deletion = toy_grammar.alternatives[DiffUnit][1]
 Insertion = toy_grammar.alternatives[DiffUnit][2]
-r = RandomSource(0)
+rs = RandomSource(0)
 
 
 class TestPhenotypeCorrector:
@@ -43,7 +43,7 @@ class TestPhenotypeCorrector:
             ]
         )
 
-        ind.exclude_forbidden_regions(TOY_DANGER_ZONE, r)
+        ind.exclude_forbidden_regions(TOY_DANGER_ZONE)
         assert len(ind.diffs) == 1
         assert ind.diffs[0].position == 22
 
@@ -56,14 +56,14 @@ class TestPhenotypeCorrector:
             ]
         )
 
-        ind.exclude_forbidden_regions(TOY_DANGER_ZONE, r)
+        ind.exclude_forbidden_regions(TOY_DANGER_ZONE)
         assert len(ind.diffs) == 2
 
         # Two deletions, one in the forbidden zone
         ind = DiffSequence(
             [Deletion(position=6, size=5), Deletion(position=0, size=2)]
         )
-        ind.exclude_forbidden_regions(TOY_DANGER_ZONE, r)
+        ind.exclude_forbidden_regions(TOY_DANGER_ZONE)
         assert len(ind.diffs) == 1
         assert ind.diffs[0].position == 0
 
@@ -71,11 +71,11 @@ class TestPhenotypeCorrector:
         ind = DiffSequence(
             [Deletion(position=6, size=5), Deletion(position=1, size=2)]
         )
-
-        ind.exclude_forbidden_regions(TOY_DANGER_ZONE, r)
+      
+        ind.exclude_forbidden_regions(TOY_DANGER_ZONE)
         assert not ind.diffs
 
-    def test_clean_phenotype(self):
+    def remove_diffunit_overlaps(self):
         """
         Tests if the overlaps in the phenotype are properly handled.
         """
@@ -89,7 +89,7 @@ class TestPhenotypeCorrector:
             ]
         )
 
-        ind.clean(TOY_SEQ, r)
+        ind.remove_diffunit_overlaps(TOY_SEQ, rs)
         assert len(ind.diffs) == 1
         assert isinstance(ind.diffs[0], Deletion)
         assert ind.diffs[0].position == 8
@@ -105,7 +105,7 @@ class TestPhenotypeCorrector:
                 Deletion(position=6, size=2),
             ]
         )
-        ind.clean(TOY_SEQ, r)
+        ind.remove_diffunit_overlaps(TOY_SEQ, rs)
         assert len(ind.diffs) == 1
         assert ind.diffs[0].position == 9
 
@@ -120,7 +120,7 @@ class TestPhenotypeCorrector:
             ]
         )
 
-        ind.clean(TOY_SEQ, r)
+        ind.remove_diffunit_overlaps(TOY_SEQ, rs)
         assert len(ind.diffs) == 2
         assert ind.diffs[0].position == 6
         assert ind.diffs[1].position == 9
@@ -133,7 +133,7 @@ class TestPhenotypeCorrector:
                 Deletion(position=15, size=4),
             ]
         )
-        ind.clean(TOY_SEQ, r)
+        ind.remove_diffunit_overlaps(TOY_SEQ, rs)
         assert len(ind.diffs) == 2
         assert ind.diffs[0].position == 7
 
@@ -145,24 +145,25 @@ class TestPhenotypeCorrector:
                 Insertion(position=9, nucleotides="ATCGG"),
             ]
         )
-        ind.clean(TOY_SEQ, r)
+        ind.remove_diffunit_overlaps(TOY_SEQ, rs)
         assert len(ind.diffs) == 2
         assert all([isinstance(x, Insertion) for x in ind.diffs])
 
-        # Redundant SNV, empty phenotype
+        # Redundant SNV, replace by another nucleotide
         ind = DiffSequence([SNV(position=8, nucleotide="G")])
-        ind.clean(TOY_SEQ, r)
-        assert not ind.diffs
+        ind.remove_diffunit_overlaps(TOY_SEQ, rs)
+        assert ind.diffs[0].nucleotide != "G"
 
         # 1 Redundant SNVs will be removed
         ind = DiffSequence(
             [SNV(position=8, nucleotide="G"), SNV(position=0, nucleotide="T")]
         )
-        ind.clean(TOY_SEQ, r)
-        assert len(ind.diffs) == 1
-        assert ind.diffs[0].position == 0 and ind.diffs[0].nucleotide != "A"
+        ind.remove_diffunit_overlaps(TOY_SEQ, rs)
+        assert len(ind.diffs) == 2
+        assert ind.diffs[0].position == 8 and ind.diffs[0].nucleotide != "G"
+        assert ind.diffs[1].position == 0 and ind.diffs[1].nucleotide == "T"
 
-        # Multiple elements with redundant SNVs
+        # Redundant SNV with 1 overlap
         ind = DiffSequence(
             [
                 SNV(position=8, nucleotide="G"),
@@ -173,9 +174,11 @@ class TestPhenotypeCorrector:
             ]
         )
 
-        ind.clean(TOY_SEQ, r)
-        assert len(ind.diffs) == 3
-        assert not all([isinstance(x, SNV) for x in ind.diffs])
+        ind.remove_diffunit_overlaps(TOY_SEQ, rs)
+        assert len(ind.diffs) == 4
+        sort_order = [SNV, Deletion, Insertion, Insertion]
+        assert all([isinstance(x, y) for x, y in zip(ind.diffs, sort_order)])
+        assert ind.diffs[0].position == 0 and ind.diffs[0].nucleotide != "A"
 
 
 class TestPhenotypeToSequence:
@@ -202,15 +205,16 @@ class TestPhenotypeToSequence:
             ]
         )
 
-        ind.exclude_forbidden_regions(TOY_DANGER_ZONE, r)
+        ind.exclude_forbidden_regions(TOY_DANGER_ZONE)
         assert len(ind.diffs) == 3
         assert ind.diffs[0].position == 6
         assert ind.diffs[1].position == 6
         assert ind.diffs[2].position == 21
 
-        ind.clean(TOY_SEQ, r)
+
+        ind.remove_diffunit_overlaps(TOY_SEQ, rs)
         assert len(ind.diffs) == 2
-        assert ind.diffs[0].nucleotide == "T"
+        assert ind.diffs[0].nucleotide == "C"
 
         seq = TOY_SEQ
         ss_idx = TOY_SS_IDX

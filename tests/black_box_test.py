@@ -1,7 +1,9 @@
 import os
 import numpy as np
 import pytest
-from dress.datasetgeneration.grammars.random_perturbation_grammar import create_random_grammar
+from dress.datasetgeneration.grammars.random_perturbation_grammar import (
+    create_random_grammar,
+)
 from dress.datasetgeneration.black_box.model import Pangolin, SpliceAI
 from geneticengine.core.random.sources import RandomSource
 from geneticengine.algorithms.gp.individual import Individual
@@ -17,7 +19,7 @@ SS_IDX = [[100, 150], [608, 641], [860, 944]]
 
 input_seq = {"seq_id": SEQ_ID, "seq": SEQ, "ss_idx": SS_IDX}
 
-g, _ = create_random_grammar(
+g, excluded_r = create_random_grammar(
     max_diff_units=6,
     snv_weight=0.33,
     insertion_weight=0.33,
@@ -32,6 +34,7 @@ repr = TreeBasedRepresentation(g, max_depth=3)
 
 
 def create_population(rs: RandomSource):
+
     return [
         Individual(
             genotype=repr.create_individual(r=rs, g=g),
@@ -41,11 +44,12 @@ def create_population(rs: RandomSource):
     ]
 
 
-def apply_diff_to_individuals(pop):
+def apply_diff_to_individuals(pop: list, rs: RandomSource):
+
     return zip(
         *[
             ind.get_phenotype()
-            .clean(SEQ, None)
+            .remove_diffunit_overlaps(SEQ, rs)
             .apply_diff(input_seq["seq"], input_seq["ss_idx"])
             for ind in pop
         ]
@@ -75,8 +79,9 @@ class TestPangolin:
 
     def test_generated_seqs_pangolin(self):
         model = Pangolin(scoring_metric="mean", mode="ss_usage")
-        pop = create_population(RandomSource(0))
-        seqs, new_ss_positions = map(list, apply_diff_to_individuals(pop))
+        rs = RandomSource(0)
+        pop = create_population(rs)
+        seqs, new_ss_positions = map(list, apply_diff_to_individuals(pop, rs))
 
         raw_preds = model.run(seqs, original_seq=False)
 
@@ -84,13 +89,14 @@ class TestPangolin:
         black_box_preds = [*new_scores.values()]
 
         assert len(raw_preds) == 100
-        assert np.allclose(sorted(black_box_preds, reverse=True)[0:5],
-                           [0.2887, 0.2049, 0.2026, 0.2011, 0.1939],
-                           atol=1e-04
-                           )
+        assert np.allclose(
+            sorted(black_box_preds, reverse=True)[0:5],
+            [0.287, 0.2715, 0.2395, 0.2243, 0.2164],
+            atol=1e-04,
+        )
         assert np.allclose(
             sorted(black_box_preds)[0:5],
-            [0.0939, 0.11, 0.1424, 0.1434, 0.1523],
+            [0.0268, 0.0956, 0.0989, 0.1026, 0.1083],
             atol=1e-04,
         )
 
@@ -114,8 +120,9 @@ class TestSpliceAI:
 
     def test_generated_seqs_spliceai(self):
         model = SpliceAI(scoring_metric="mean")
-        pop = create_population(RandomSource(0))
-        seqs, new_ss_positions = map(list, apply_diff_to_individuals(pop))
+        rs = RandomSource(0)
+        pop = create_population(rs)
+        seqs, new_ss_positions = map(list, apply_diff_to_individuals(pop, rs))
         raw_preds = model.run(seqs, original_seq=False)
         new_scores = model.get_exon_score(raw_preds, ss_idx=new_ss_positions)
         black_box_preds = [*new_scores.values()]
@@ -124,11 +131,11 @@ class TestSpliceAI:
 
         assert np.allclose(
             sorted(black_box_preds, reverse=True)[0:5],
-            [0.4692, 0.3806, 0.3722, 0.3711, 0.3668],
+            [0.4798, 0.4447, 0.4285, 0.3953, 0.387],
             atol=1e-05,
         )
         assert np.allclose(
             sorted(black_box_preds)[0:5],
-            [0.2626, 0.2769, 0.2945, 0.3162, 0.3184],
+            [0.2234, 0.2302, 0.248, 0.2512, 0.2559],
             atol=1e-05,
         )
