@@ -84,37 +84,6 @@ def _shuffle(input_seq, excluded_ranges, shuffle_func, **kwargs) -> str:
     return shuffled_seq
 
 
-def _shuffle_old(input_seq, excluded_r, shuff_func, rs):
-    shuffled_seq = ""
-    to_shuffle_r = []
-    first_r = excluded_r[0]
-    if first_r[0] > 0:
-        to_shuffle_r.append(range(0, first_r[0]))
-
-    previous_r = first_r
-    for interval in excluded_r[1:]:
-        assert interval.start > previous_r.stop
-        to_shuffle_r.append(range(previous_r.stop, interval.start))
-        previous_r = interval
-
-    # Last range
-    last_r = excluded_r[-1]
-    if last_r.stop < len(input_seq["seq"]):
-        to_shuffle_r.append(range(last_r.stop, len(input_seq["seq"])))
-
-    merged = sorted(excluded_r + to_shuffle_r, key=lambda x: x.start)
-    for interval in merged:
-        if interval in excluded_r:
-            shuffled_seq += input_seq["seq"][interval.start : interval.stop]
-        elif interval in to_shuffle_r:
-            shuffled_seq += shuff_func(
-                input_seq["seq"][interval.start : interval.stop], rs=rs
-            )
-        else:
-            raise ValueError("Problem here")
-    return shuffled_seq
-
-
 def shuffle_input_sequence(input_seq: dict, **kwargs) -> dict:
 
     rs = RandomSource(kwargs.get("seed", 0))
