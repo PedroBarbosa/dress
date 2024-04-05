@@ -394,6 +394,15 @@ def grammar_options(fun):
     )(fun)
 
     fun = click.option(
+        "-delw",
+        "--deletion_weight",
+        type=float,
+        default=0.33,
+        help="Probability to generate a grammar node that applies a deletion to the sequence "
+        "(random or motif deletion, depending on '--which_grammar' argument). Default: 0.33",
+    )(fun)
+
+    fun = click.option(
         "-insw",
         "--insertion_weight",
         type=float,
@@ -403,12 +412,21 @@ def grammar_options(fun):
     )(fun)
 
     fun = click.option(
-        "-delw",
-        "--deletion_weight",
+        "-msubw",
+        "--motif_substitution_weight",
         type=float,
-        default=0.33,
-        help="Probability to generate a grammar node that applies a deletion to the sequence "
-        "(random or motif deletion, depending on '--which_grammar' argument). Default: 0.33",
+        default=0,
+        help="Probability to generate a grammar node that applies a motif substitution to the sequence "
+        "(replace a region of the sequence with a motif) when '--which_grammar' is 'motif_based'. Default: 0",
+    )(fun)
+
+    fun = click.option(
+        "-mablw",
+        "--motif_ablation_weight",
+        type=float,
+        default=0,
+        help="Probability to generate a grammar node that applies a motif ablation to the sequence "
+        "(substitute a motif of the sequence with random/shuffled nucleotides) when '--which_grammar' is 'motif_based'. Default: 0",
     )(fun)
 
     fun = click.option(

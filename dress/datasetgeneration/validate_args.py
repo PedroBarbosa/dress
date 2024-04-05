@@ -23,6 +23,8 @@ GENERATE_GROUP_OPTIONS = {
                 "--snv_weight",
                 "--insertion_weight",
                 "--deletion_weight",
+                "--motif_ablation_weight",
+                "--motif_substitution_weight",
                 "--acceptor_untouched_range",
                 "--donor_untouched_range",
                 "--untouched_regions",

@@ -293,7 +293,7 @@ def _increment_seq_id(df: pd.DataFrame) -> pd.DataFrame:
     Returns:
         pd.DataFrame: Dataset with unique sequence IDs
     """
-    #assert df.iloc[0].Phenotype == "original", "First sequence must be the original one"
+    assert df.iloc[0].Phenotype == "wt", "First sequence must be the original one"
 
     df_count = df.groupby("Seq_id").size().reset_index(name="counts")
 

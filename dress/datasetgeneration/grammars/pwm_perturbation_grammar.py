@@ -19,7 +19,6 @@ from dress.datasetgeneration.grammars.utils import (
     _get_location_map,
 )
 from geneticengine.core.random.sources import RandomSource
-from geneticengine.metahandlers.ints import IntList
 from geneticengine.metahandlers.lists import ListSizeBetween
 from geneticengine.metahandlers.vars import VarRange
 from geneticengine.core.decorators import weight
@@ -41,9 +40,6 @@ class DiffUnit(ABC):
 
     @abc.abstractmethod
     def adjust_index(self, ss_idx: List[list]) -> List[list]: ...
-
-    @abc.abstractmethod
-    def sample_new_position(self, r: RandomSource) -> int: ...
 
     @abc.abstractmethod
     def get_size(self) -> int: ...
@@ -88,16 +84,18 @@ def create_motif_grammar(
         diffs: Annotated[list[DiffUnit], ListSizeBetween(1, max_diff_units)]
 
         def exclude_forbidden_regions(
-            self, forbidden_regions: list, r: RandomSource
+            self, forbidden_regions: list
         ) -> Union["DiffSequence", None]:
             """
             Excludes diff units overlapping with a set
-            of forbidden regions
+            of forbidden regions. The start position
+            should be taken into account by metahandlers in the grammar
+            itself, but the end position of some grammar nodes
+            (Deletion, Ablation, Subststitution) may span forbidden region
 
             Args:
                 forbidden_regions (list): List with ranges within the
                 sequence that cannot be mutated
-                r (RandomSource): Random source generator
 
             Returns:
                 Union[DiffSequence, None]: Returns DiffSequence object itself or None,
@@ -111,13 +109,17 @@ def create_motif_grammar(
             )
             to_exclude = []
             for i, d in enumerate(self.diffs):
-                if isinstance(d, MotifDeletion):
-                    _r1 = range(d.position[0], d.position[1])
+                if isinstance(d, (MotifDeletion, MotifAblation, MotifSubstitution)):
+                    if isinstance(d, MotifSubstitution):
+                        _r1 = range(d.position, d.position + d.get_size())
+                    else:
+                        _r1 = range(d.position[0], d.position[0] + d.get_size())
 
-                    for _r2 in forbidden_regions:
-                        if _r1.start < _r2.stop and _r1.stop > _r2.start:
-                            to_exclude.append(i)
-                            break
+                    if any(
+                        _r1.start < _r2.stop and _r1.stop > _r2.start
+                        for _r2 in forbidden_regions
+                    ):
+                        to_exclude.append(i)
                 else:
                     if d.position in flat_forbidden:  # type: ignore
                         to_exclude.append(i)
@@ -129,20 +131,17 @@ def create_motif_grammar(
 
             return self
 
-        def clean(self, seq: str, r: RandomSource) -> Union["DiffSequence", None]:
+        def remove_diffunit_overlaps(self, seq: str, rs: RandomSource) -> Union["DiffSequence", None]:
             """
-            Clean individual phenotypes by removing redundant
-            SNVs (e.g, substitution of A by A) and excluding
+            Clean individual phenotypes by excluding
             overlapping diff units.
 
             Prioritizes the longest diff unit, meaning that
-            deletions tend to be selected when overlaps
-            are found, since they will be bigger than SNVs and
-            Insertions
+            deletions or insertions tend to be selected over SNVs
 
             Args:
                 seq (str): Original sequence
-                r (RandomSource): Random source generator
+                rs (RandomSource): RandomSource object
             """
             self.diffs.sort(
                 key=lambda x: (
@@ -150,13 +149,11 @@ def create_motif_grammar(
                 )
             )
             _diffs = self.diffs.copy()
-
             ranges = []
             for d in _diffs:
                 if isinstance(d, MotifSNV) and d.is_redundant(seq):
-                    self.diffs.remove(d)
-                    continue
-
+                    d.sample_new_nucleotide(rs)
+                    
                 if isinstance(d, MotifDeletion):
                     current_r = [
                         1,
@@ -166,7 +163,9 @@ def create_motif_grammar(
                         str(d),
                     ]
 
-                elif isinstance(d, (MotifInsertion, MotifSNV)):
+                elif isinstance(
+                    d, (MotifInsertion, MotifSubstitution, MotifAblation, MotifSNV)
+                ):
                     current_r = [1, d.position, d.position + 1, d.get_size(), str(d)]
 
                 else:
@@ -175,7 +174,7 @@ def create_motif_grammar(
                 ranges.append(current_r)
 
             if len(self.diffs) == 0:
-                return None
+                raise ValueError("Individual should never be empty here")
 
             elif len(self.diffs) > 1:
                 cols = ["Chromosome", "Start", "End", "length", "phen"]
@@ -193,36 +192,6 @@ def create_motif_grammar(
                 self.diffs[:] = [self.diffs[i] for i in to_keep]
 
             return self
-
-        def draw_valid_diff_unit(
-            self, diffs: List[DiffUnit], to_exclude: List[range], r: RandomSource
-        ) -> None:
-            """
-            Draws a new diff unit that does not overlap with a list of ranges
-
-            Args:
-                diffs (List[DiffUnit]): List of diff units
-                to_exclude (List[range]): List of ranges with the positions to exclude
-                r (RandomSource): Random source generator
-            """
-            _diff_unit = diffs[r.randint(0, len(diffs) - 1)]
-            new_pos = _diff_unit.sample_new_position(r)
-
-            def _condition():
-                return (
-                    any(
-                        p in to_exclude
-                        for p in [new_pos, new_pos + _diff_unit.get_size()]  # type: ignore
-                        if isinstance(_diff_unit, MotifDeletion)
-                    )
-                    or new_pos in to_exclude
-                )
-
-            while _condition():
-                new_pos = _diff_unit.sample_new_position(r)
-
-            _diff_unit.position = new_pos  # type: ignore
-            self.diffs = [_diff_unit]
 
         def apply_diff(
             self, seq: str, ss_indexes: List[list]
@@ -282,13 +251,9 @@ def create_motif_grammar(
 
         def is_redundant(self, seq: str) -> bool:
             return True if seq[self.position] == self.nucleotide else False
-
-        def sample_new_nucleotide(self, r: RandomSource) -> str:
-            nuc = [n for n in NUCLEOTIDES if n != self.nucleotide]
-            return r.choice(nuc)
-
-        def sample_new_position(self, r: RandomSource) -> int:
-            return r.choice(IntList(MOTIF_INFO_SNV.position.unique().tolist()))
+        
+        def sample_new_nucleotide(self, rs: RandomSource) -> str:
+            self.nucleotide = rs.choice([nuc for nuc in NUCLEOTIDES if nuc != self.nucleotide])
 
         def get_size(self) -> int:
             return 1
@@ -323,10 +288,6 @@ def create_motif_grammar(
                 for ss in _ss_idx
             ]
             return [adj[0:2], adj[2:4], adj[4:6]]
-
-        def sample_new_position(self, r: RandomSource) -> int:
-            idx = r.randint(0, len(MOTIF_INFO_DELS) - 1)
-            return [MOTIF_INFO_DELS[idx][0], MOTIF_INFO_DELS[idx][1], idx]
 
         def get_size(self) -> int:
             return self.position[1] - self.position[0]
@@ -363,9 +324,6 @@ def create_motif_grammar(
             ]
             return [adj[0:2], adj[2:4], adj[4:6]]
 
-        def sample_new_position(self, r: RandomSource) -> int:
-            return r.randint(0, seqsize)
-
         def get_size(self) -> int:
             return len(self.nucleotides[1])
 
@@ -384,11 +342,88 @@ def create_motif_grammar(
         def __str__(self):
             return f"MotifInsertion[{self.position},{self.nucleotides[0]},{self.get_size()},{self.get_location()},{self.get_distance_to_cassette()}]"
 
+    @dataclass
+    class MotifAblation(DiffUnit):
+        position: Annotated[
+            tuple, CustomIntListDeletions(MOTIF_INFO_DELS, is_ablation=True)
+        ]
+
+        def perturb(self, seq: str, position_tracker: int) -> str:
+            assert self.position[0] < self.position[1]
+            size = self.position[1] - self.position[0]
+            assert self.position[0] + size + position_tracker <= len(seq)
+
+            return (
+                seq[: self.position[0] + position_tracker]
+                + self.position[3]
+                + seq[self.position[0] + size + position_tracker :]
+            )
+
+        def adjust_index(self, ss_indexes: List[list]) -> List[list]:
+            _ss_idx = list(itertools.chain(*ss_indexes))
+
+            adj = [
+                (
+                    ss - self.get_size()
+                    if isinstance(ss, int) and self.position[0] < ss
+                    else ss
+                )
+                for ss in _ss_idx
+            ]
+            return [adj[0:2], adj[2:4], adj[4:6]]
+
+        def get_size(self) -> int:
+            return self.position[1] - self.position[0]
+
+        def __str__(self):
+            _info = MOTIF_INFO_DELS[self.position[2]]
+            rbps = ">5RBPs" if _info[5][0].count(";") + 1 > 5 else _info[5][0]
+            return f"MotifAblation[{self.position[0]},{rbps},{self.get_size()},{_info[2]},{min(_info[3], _info[4])}]"
+
+    @dataclass
+    class MotifSubstitution(DiffUnit):
+        position: Annotated[
+            int, IntRangeExcludingSomeValues(0, seqsize - 1, exclude=EXCLUDED_REGIONS)
+        ]
+        nucleotides: Annotated[tuple, CustomIntListInsertions(MOTIF_INFO_INS)]
+
+        def perturb(self, seq: str, position_tracker: int) -> str:
+            assert self.position + position_tracker <= len(seq)
+
+            return (
+                seq[: self.position + position_tracker]
+                + self.nucleotides[1]
+                + seq[self.position + position_tracker + len(self.nucleotides[1]) :]
+            )
+
+        def adjust_index(self, ss_indexes: List[list]) -> List[list]:
+            return ss_indexes
+
+        def get_size(self) -> int:
+            return len(self.nucleotides[1])
+
+        def get_location(self) -> str:
+            for loc, _range in LOCATION_MAP.items():
+                if isinstance(_range[1], int) and self.position <= _range[1]:
+                    return loc
+
+        def get_distance_to_cassette(self) -> int:
+            cass = LOCATION_MAP["Exon_cassette"]
+            return min(
+                abs(self.position - cass[0]),
+                abs(self.position - cass[1]),
+            )
+
+        def __str__(self):
+            return f"MotifSubstitution[{self.position},{self.nucleotides[0]},{self.get_size()},{self.get_location()},{self.get_distance_to_cassette()}]"
+
     g = extract_grammar(
         [
             weight(kwargs["snv_weight"])(MotifSNV),
             weight(kwargs["deletion_weight"])(MotifDeletion),
             weight(kwargs["insertion_weight"])(MotifInsertion),
+            weight(kwargs["motif_ablation_weight"])(MotifAblation),
+            weight(kwargs["motif_substitution_weight"])(MotifSubstitution),
         ],
         DiffSequence,
     )

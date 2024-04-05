@@ -100,6 +100,8 @@ schema = {
                         "snv_weight": {"type": "number"},
                         "insertion_weight": {"type": "number"},
                         "deletion_weight": {"type": "number"},
+                        "motif_substitution_weight": {"type": "number"},
+                        "motif_deletion_weight": {"type": "number"},
                         "acceptor_untouched_range": {
                             "type": "array",
                             "items": {"type": "integer"},

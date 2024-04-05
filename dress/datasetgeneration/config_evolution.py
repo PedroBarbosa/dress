@@ -62,14 +62,13 @@ from dress.datasetgeneration.os_utils import dump_yaml
 
 
 def _is_valid_individual(
-    ind: Individual, seq: str, regions: List[range], r: RandomSource
+    ind: Individual, regions: List[range]
 ) -> bool:
-    """ """
-    _genotype = ind.get_phenotype().exclude_forbidden_regions(regions, r)  # type: ignore
-    if _genotype is None:
-        return False
-
-    _genotype = _genotype.clean(seq, r)
+    """
+    Checks if an individual still holds a valid genotype 
+    after removing overlaps with forbidden regions
+    """
+    _genotype = ind.get_phenotype().exclude_forbidden_regions(regions)  # type: ignore
     return False if _genotype is None else True
 
 
@@ -97,7 +96,7 @@ def correct_phenotypes(
 
     new_pop = []
     for ind in population:
-        if _is_valid_individual(ind, original_seq, excluded_regions, random_source):
+        if _is_valid_individual(ind, excluded_regions):
             new_pop.append(ind)
 
         else:
@@ -110,7 +109,7 @@ def correct_phenotypes(
                 is_valid = (
                     True
                     if _is_valid_individual(
-                        _ind, original_seq, excluded_regions, random_source
+                        _ind, excluded_regions
                     )
                     else False
                 )

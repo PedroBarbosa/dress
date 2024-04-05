@@ -272,7 +272,7 @@ class Archive(object):
                     spanned += 1
                 
                 # Motif-based Grammar
-                elif diff_unit.startswith(('MotifDeletion', 'MotifInsertion')):
+                elif diff_unit.startswith(('MotifDeletion', 'MotifInsertion', 'MotifSubstitution', 'MotifAblation')):
                     spanned += int(diff_unit.split(',')[2])
                 elif diff_unit.startswith('MotifSNV'):
                     spanned += 1

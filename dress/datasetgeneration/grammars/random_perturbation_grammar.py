@@ -32,10 +32,6 @@ class DiffUnit(ABC):
         ...
 
     @abc.abstractmethod
-    def sample_new_position(self, r: RandomSource) -> int:
-        ...
-
-    @abc.abstractmethod
     def get_size(self) -> int:
         ...
 
@@ -87,7 +83,7 @@ def create_random_grammar(
         diffs: Annotated[list[DiffUnit], ListSizeBetween(1, max_diff_units)]
 
         def exclude_forbidden_regions(
-            self, forbidden_regions: list, r: RandomSource
+            self, forbidden_regions: list
         ) -> Union["DiffSequence", None]:
             """
             Excludes diff units overlapping with a set
@@ -96,7 +92,6 @@ def create_random_grammar(
             Args:
                 forbidden_regions (list): List with ranges within the
                 sequence that cannot be mutated
-                r (RandomSource): Random source generator
 
             Returns:
                 Union[DiffSequence, None]: Returns DiffSequence object itself or None,
@@ -125,7 +120,7 @@ def create_random_grammar(
 
             return self
 
-        def clean(self, seq: str, r: RandomSource) -> Union["DiffSequence", None]:
+        def remove_diffunit_overlaps(self, seq: str, rs: RandomSource) -> Union["DiffSequence", None]:
             """
             Clean individual phenotypes by removing redundant
             SNVs (e.g, substitution of A by A) and excluding
@@ -138,7 +133,7 @@ def create_random_grammar(
 
             Args:
                 seq (str): Original sequence
-                r (RandomSource): Random source generator
+                rs (RandomSource): RandomSource object
             """
 
             self.diffs.sort(key=lambda x: x.position)  # type: ignore
@@ -147,8 +142,7 @@ def create_random_grammar(
             ranges = []
             for d in _diffs:
                 if isinstance(d, SNV) and d.is_redundant(seq):
-                    self.diffs.remove(d)
-                    continue
+                    d.sample_new_nucleotide(rs)
 
                 if isinstance(d, Deletion):
                     current_r = [
@@ -168,7 +162,7 @@ def create_random_grammar(
                 ranges.append(current_r)
 
             if len(self.diffs) == 0:
-                return None
+                raise ValueError("Individual should never be empty here")
 
             elif len(self.diffs) > 1:
 
@@ -188,35 +182,6 @@ def create_random_grammar(
 
             return self
 
-        def draw_valid_diff_unit(
-            self, diffs: List[DiffUnit], to_exclude: List[range], r: RandomSource
-        ) -> None:
-            """
-            Draws a new diff unit that does not overlap with a list of ranges
-
-            Args:
-                diffs (List[DiffUnit]): List of diff units
-                to_exclude (List[range]): List of ranges with the positions to exclude
-                r (RandomSource): Random source generator
-            """
-            _diff_unit = diffs[r.randint(0, len(diffs) - 1)]
-            new_pos = _diff_unit.sample_new_position(r)
-
-            def _condition():
-                return (
-                    any(
-                        p in to_exclude
-                        for p in [new_pos, new_pos + _diff_unit.get_size()]  # type: ignore
-                        if isinstance(_diff_unit, Deletion)
-                    )
-                    or new_pos in to_exclude
-                )
-
-            while _condition():
-                new_pos = _diff_unit.sample_new_position(r)
-
-            _diff_unit.position = new_pos  # type: ignore
-            self.diffs = [_diff_unit]
 
         def apply_diff(
             self, seq: str, ss_indexes: List[list]
@@ -271,13 +236,9 @@ def create_random_grammar(
 
         def is_redundant(self, seq: str) -> bool:
             return True if seq[self.position] == self.nucleotide else False
-
-        def sample_new_nucleotide(self, r: RandomSource) -> str:
-            nuc = [n for n in NUCLEOTIDES if n != self.nucleotide]
-            return r.choice(nuc)
-
-        def sample_new_position(self, r: RandomSource) -> int:
-            return r.randint(0, seqsize - 1)
+        
+        def sample_new_nucleotide(self, rs: RandomSource) -> str:
+            self.nucleotide = rs.choice([nuc for nuc in NUCLEOTIDES if nuc != self.nucleotide])
 
         def get_size(self) -> int:
             return 1
@@ -304,9 +265,6 @@ def create_random_grammar(
                 for ss in _ss_idx
             ]
             return [adj[0:2], adj[2:4], adj[4:6]]
-
-        def sample_new_position(self, r: RandomSource) -> int:
-            return r.randint(0, seqsize - max_deletion_size)
 
         def get_size(self) -> int:
             return self.size
@@ -336,9 +294,6 @@ def create_random_grammar(
                 for ss in _ss_idx
             ]
             return [adj[0:2], adj[2:4], adj[4:6]]
-
-        def sample_new_position(self, r: RandomSource) -> int:
-            return r.randint(0, seqsize)
 
         def get_size(self) -> int:
             return len(self.nucleotides)

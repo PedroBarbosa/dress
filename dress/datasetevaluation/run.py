@@ -213,7 +213,6 @@ def evaluate(**args):
         generated_datasets=[args["dataset"], args["another_dataset"]],
         **args,
     )
-    print(dataset_obj)
 
     # dump_yaml(os.path.join(args["outdir"], "args_used.yaml"), **args)
     args.pop("dataset")

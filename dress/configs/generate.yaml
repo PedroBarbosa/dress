@@ -58,6 +58,8 @@ generate:
     snv_weight: 0.33
     insertion_weight: 0.33
     deletion_weight: 0.33
+    motif_substitution_weight: 0
+    motif_ablation_weight: 0
     acceptor_untouched_range:
       - -10
       - 2
