@@ -134,7 +134,6 @@ schema = {
                 "fitness",
                 "archive",
                 "population",
-                "individual",
                 "selection",
                 "stopping",
                 "tracking_evolution",

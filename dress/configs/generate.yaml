@@ -47,7 +47,7 @@ generate:
       - time
     stop_at_value:
       - 5000
-      - 30
+      - 5
     stop_when_all: false
   tracking_evolution:
     disable_tracking: false

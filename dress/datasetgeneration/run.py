@@ -570,7 +570,6 @@ def grammar_options(fun):
 @click.option(
     "-cd",
     "--cache_dir",
-    type=click.Path(exists=True, resolve_path=True),
     default=f"{DATA_PATH}/cache/",
     help="Directory where exon cache is located. Required when 'input' is 'bed' or 'tabular'. "
     "Default: 'data/cache/'.",

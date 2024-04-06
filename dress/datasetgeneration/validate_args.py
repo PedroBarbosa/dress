@@ -1,3 +1,4 @@
+import os
 import rich_click as click
 import yaml
 from jsonschema import ValidationError, validate
@@ -122,6 +123,10 @@ def check_args(args) -> dict:
         args["config"] = None
         return check_args(args)
 
+    # Cache dir
+    if not os.path.exists(args["cache_dir"]):
+        raise click.UsageError(f"Cache directory {args['cache_dir']} does not exist.")
+    
     # Selection operators
     if len(args["operators_weight"]) != len(args["elitism_weight"]) or len(
         args["elitism_weight"]
