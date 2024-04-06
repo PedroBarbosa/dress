@@ -8,7 +8,7 @@ generate:
   model_scoring_metric: mean
   pangolin_mode: ss_usage
   pangolin_tissue: null
-  disable_gpu: null
+  disable_gpu: false
   outdir: output
   outbasename: null
   preprocessing:
@@ -22,8 +22,8 @@ generate:
   archive:
     archive_size: 5000
     archive_diversity_metric: normalized_shannon
-    prune_archive_individuals: false
-    prune_at_generations: null
+    prune_archive_individuals: true
+    prune_at_generations:
   population:
     population_size: 500
   selection:

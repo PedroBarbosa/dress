@@ -9,7 +9,7 @@ generate:
   pangolin_mode: ss_usage
   pangolin_tissue: null
   disable_gpu: false
-  outdir: bin_filler_GP
+  outdir: outdir
   outbasename:
   preprocessing:
     cache_dir: data/cache/
