@@ -104,7 +104,7 @@ def motif_core_options(fun):
         cls=OptionEatAll,
         default=["encode"],
         help="Subset motif scanning for the given list of RNA Binding Proteins (RBPs), or "
-        "to the RBPs belonging to a specific set. Default: ['encode'], list of "
+        "to the RBPs belonging to a specific set. Default: 'encode', list of "
         "splicing-associated RBPs identified in the context of the ENCODE project.",
     )(fun)
 

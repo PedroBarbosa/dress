@@ -3,11 +3,9 @@ import abc
 from dataclasses import dataclass
 import itertools
 from typing import Annotated, Tuple, Union
-
 import pandas as pd
 import pyranges as pr
 from dress.datasetevaluation.representation.motifs.search import FimoSearch, PlainSearch
-from dress.datasetgeneration.dataset import Dataset
 from dress.datasetgeneration.metahandlers.ints import (
     CustomIntListDeletions,
     CustomIntListInsertions,
@@ -15,6 +13,7 @@ from dress.datasetgeneration.metahandlers.ints import (
     IntRangeExcludingSomeValues,
 )
 from dress.datasetgeneration.grammars.utils import (
+    _run_motif_scan_on_wt_seq,
     _get_forbidden_zones,
     _get_location_map,
 )
@@ -26,10 +25,6 @@ from typing import List
 from geneticengine.core.grammar import Grammar, extract_grammar
 
 NUCLEOTIDES = ["A", "C", "G", "T"]
-MOTIF_SEARCH_OPTIONS = {
-    "fimo": FimoSearch,
-    "plain": PlainSearch,
-}
 
 
 class DiffUnit(ABC):
@@ -59,13 +54,10 @@ def create_motif_grammar(
         Grammar: Returns the grammar that specifies the production rules of the language
         List[range]: List of ranges that cannot be perturbed
     """
-
     max_diff_units = kwargs.get("max_diff_units", 6)
     seqsize = len(input_seq["seq"])
-    kwargs["logger"].info(f"Scanning motifs in the original sequence")
-    motif_searcher = MOTIF_SEARCH_OPTIONS.get(kwargs.get("motif_search", "fimo"))
-    motif_search = motif_searcher(dataset=Dataset(_dict_to_df(input_seq)), **kwargs)
 
+    motif_search, kwargs = _run_motif_scan_on_wt_seq(input_seq, **kwargs)
     LOCATION_MAP = _get_location_map(input_seq)
     if excluded_regions is None:
         EXCLUDED_REGIONS = _get_forbidden_zones(
@@ -135,7 +127,9 @@ def create_motif_grammar(
 
             return self
 
-        def remove_diffunit_overlaps(self, seq: str, rs: RandomSource) -> Union["DiffSequence", None]:
+        def remove_diffunit_overlaps(
+            self, seq: str, rs: RandomSource
+        ) -> Union["DiffSequence", None]:
             """
             Clean individual phenotypes by excluding
             overlapping diff units.
@@ -157,7 +151,7 @@ def create_motif_grammar(
             for d in _diffs:
                 if isinstance(d, MotifSNV) and d.is_redundant(seq):
                     d.sample_new_nucleotide(rs)
-                    
+
                 if isinstance(d, MotifDeletion):
                     current_r = [
                         1,
@@ -255,9 +249,11 @@ def create_motif_grammar(
 
         def is_redundant(self, seq: str) -> bool:
             return True if seq[self.position] == self.nucleotide else False
-        
+
         def sample_new_nucleotide(self, rs: RandomSource) -> str:
-            self.nucleotide = rs.choice([nuc for nuc in NUCLEOTIDES if nuc != self.nucleotide])
+            self.nucleotide = rs.choice(
+                [nuc for nuc in NUCLEOTIDES if nuc != self.nucleotide]
+            )
 
         def get_size(self) -> int:
             return 1
@@ -421,6 +417,16 @@ def create_motif_grammar(
         def __str__(self):
             return f"MotifSubstitution[{self.position},{self.nucleotides[0]},{self.get_size()},{self.get_location()},{self.get_distance_to_cassette()}]"
 
+    #     grammar_nodes = []
+    # grammar_map = {'snv_weight': MotifSNV,
+    #                'deletion_weight': MotifDeletion,
+    #                'insertion_weight': MotifInsertion,
+    #                'motif_ablation_weight': MotifAblation,
+    #                'motif_substitution_weight': MotifSubstitution}
+
+    # for _arg, nodename in  grammar_map.items():
+    #     if kwargs[_arg] > 0:
+    #         grammar_nodes.append(weight(kwargs[_arg])(nodename))
     g = extract_grammar(
         [
             weight(kwargs["snv_weight"])(MotifSNV),
@@ -435,29 +441,6 @@ def create_motif_grammar(
     return g, EXCLUDED_REGIONS
 
 
-def _dict_to_df(d: dict) -> pd.DataFrame:
-    return pd.DataFrame(
-        {
-            "Run_id": [
-                d["seq_id"]
-                .replace(":", "_")
-                .replace("(+)", "")
-                .replace("(-)", "")
-                .replace("-", "_")
-            ],
-            "Seed": [0],
-            "Seq_id": [d["seq_id"]],
-            "Phenotype": ["wt"],
-            "Sequence": [d["seq"]],
-            "Splice_site_positions": [
-                ";".join([str(x) for sublist in d["ss_idx"] for x in sublist])
-            ],
-            "Score": [d["score"]],
-            "Delta_score": [0],
-        }
-    )
-
-
 def _structure_motif_info(
     motif_search_obj: Union[FimoSearch, PlainSearch],
     seqsize: int,
@@ -466,45 +449,63 @@ def _structure_motif_info(
 ) -> pd.DataFrame:
     _excluded_r = set(itertools.chain(*[x for x in excluded_regions]))
     motif2ins = [[rbp, motifs] for rbp, motifs in motif_search_obj.motifs.items()]
-    motif_hits = motif_search_obj.motif_results
-    motif_intervals = (
-        motif_hits.groupby(
-            [
-                "Start",
-                "End",
-                "location",
-                "distance_to_cassette_acceptor",
-                "distance_to_cassette_donor",
-            ]
+    try:
+        motif_hits = motif_search_obj.motif_results
+        motif_intervals = (
+            motif_hits.groupby(
+                [
+                    "Start",
+                    "End",
+                    "location",
+                    "distance_to_cassette_acceptor",
+                    "distance_to_cassette_donor",
+                ]
+            )
+            .apply(
+                lambda x: [
+                    ";".join(x.RBP_name.tolist()),
+                    list(set(x.RBP_motif.tolist()))[0],
+                ]
+            )
+            .reset_index()
+            .rename(columns={0: "rbp_info"})
         )
-        .apply(
-            lambda x: [
-                ";".join(x.RBP_name.tolist()),
-                list(set(x.RBP_motif.tolist()))[0],
-            ]
+
+        per_position_info = pd.concat(
+            motif_intervals.apply(_expand_row, axis=1).tolist()
         )
-        .reset_index()
-        .rename(columns={0: "rbp_info"})
-    )
+        per_position_info_agg = per_position_info.groupby("position").apply(
+            _aggregate_multi_position_info
+        )
+        kwargs["logger"].info(
+            f"{per_position_info_agg.shape[0]}/{seqsize} ({per_position_info_agg.shape[0] / seqsize * 100:.2f}%) positions with motifs"
+        )
+        motif2snv = per_position_info_agg[
+            ~per_position_info_agg.position.isin(_excluded_r)
+        ]
 
-    per_position_info = pd.concat(motif_intervals.apply(_expand_row, axis=1).tolist())
-    per_position_info_agg = per_position_info.groupby("position").apply(
-        _aggregate_multi_position_info
-    )
-    kwargs["logger"].info(
-        f"{per_position_info_agg.shape[0]}/{seqsize} ({per_position_info_agg.shape[0] / seqsize * 100:.2f}%) positions with motifs"
-    )
-    motif2snv = per_position_info_agg[~per_position_info_agg.position.isin(_excluded_r)]
+        kwargs["logger"].info(
+            f"{per_position_info_agg.shape[0] - motif2snv.shape[0]} positions with motifs will not be used due to overlapping with excluded regions."
+        )
+        motif2dels = motif_intervals.values.tolist()
+        motif2dels = [
+            el
+            for el in motif2dels
+            if not any(x in _excluded_r for x in range(el[0], el[1]))
+        ]
+    except AttributeError:
+        motif2dels = []
+        motif2snvs_cols = [
+            "position",
+            "location",
+            "distance_to_cassette",
+            "ref_nuc",
+            "position_in_motif",
+            "rbp_name",
+            "rbp_motif",
+        ]
+        motif2snv = pd.DataFrame(columns=motif2snvs_cols)
 
-    kwargs["logger"].info(
-        f"{per_position_info_agg.shape[0] - motif2snv.shape[0]} positions with motifs will not be used due to overlapping with excluded regions."
-    )
-    motif2dels = motif_intervals.values.tolist()
-    motif2dels = [
-        el
-        for el in motif2dels
-        if not any(x in _excluded_r for x in range(el[0], el[1]))
-    ]
     return motif2snv, motif2dels, motif2ins
 
 

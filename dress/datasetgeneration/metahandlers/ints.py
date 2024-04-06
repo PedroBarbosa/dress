@@ -116,10 +116,6 @@ class CustomIntListDeletions(MetaHandlerGenerator):
     """
 
     def __init__(self, elements, is_ablation: bool = False):
-        assert (
-            len(elements) > 0
-        ), f"no deletions to select from. Either redo motif scanning "
-        "with a more permissive setup, increase the sequence space to search or set deletion_weight to 0"
 
         self.elements = elements
         self.is_ablation = is_ablation

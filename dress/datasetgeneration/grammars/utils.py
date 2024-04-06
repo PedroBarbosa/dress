@@ -1,6 +1,17 @@
+import os
+import shutil
 from typing import List, Union
 from geneticengine.core.random.sources import RandomSource
 import numpy as np
+import pandas as pd
+
+from dress.datasetevaluation.representation.motifs.search import FimoSearch, PlainSearch
+from dress.datasetgeneration.dataset import Dataset
+
+MOTIF_SEARCH_OPTIONS = {
+    "fimo": FimoSearch,
+    "plain": PlainSearch,
+}
 
 
 def _get_forbidden_zones(
@@ -86,7 +97,7 @@ def _get_forbidden_zones(
 
             except KeyError:
                 raise ValueError(f"Region {region} not recognized.")
-            
+
             if all(x == "<NA>" for x in _range):
                 continue
             elif _range[0] == "<NA>":
@@ -144,6 +155,90 @@ def _get_location_map(input_seq: dict) -> dict:
             else ("<NA>", "<NA>")
         ),
     }
+
+
+def _run_motif_scan_on_wt_seq(input_seq: dict, **kwargs):
+    """
+    Run motif scan on the original sequence
+
+    Args:
+        input_seq (dict): Original sequence information
+        **kwargs: Additional arguments
+
+    Returns:
+        MotifSearch: MotifSearch object
+        dict: Updated kwargs
+    """
+    kwargs["logger"].info(f"Scanning motifs in the original sequence")
+    motif_searcher = MOTIF_SEARCH_OPTIONS.get(kwargs.get("motif_search", "fimo"))
+
+    dt = Dataset(_dict_to_df(input_seq))
+    motifs_outfn = os.path.join(
+        kwargs["outdir"], f"{kwargs['outbasename']}_original_seq_motifs.tsv.gz"
+    )
+    try:
+        motif_search = motif_searcher(dataset=dt, **kwargs)
+        motif_results = motif_search.motif_results
+
+    except ValueError as e:
+        kwargs["logger"].warning(
+            f"Could not find any motifs in the original sequence with the current settings. "
+            f"Evolution will be performed with insertions only (--insertion_weight {kwargs['insertion_weight']} "
+            f"and --motif_substitution_weight {kwargs['motif_substitution_weight']}. Other diff units will be ignored.)"
+        )
+        kwargs["snv_weight"] = 0
+        kwargs["deletion_weight"] = 0
+        kwargs["motif_ablation_weight"] = 0
+        motif_search = motif_searcher(dataset=dt, do_scan=False, **kwargs)
+        motif_cols = [
+            "Seq_id",
+            "RBP_name",
+            "RBP_motif",
+            "Start",
+            "End",
+            "p-value",
+            "q-value",
+            "RBP_name_motif",
+            "distance_to_cassette_acceptor",
+            "distance_to_cassette_donor",
+            "is_in_exon",
+            "location",
+            "distance_to_acceptor",
+            "distance_to_donor",
+        ]
+        motif_results = pd.DataFrame(columns=motif_cols)
+
+    motif_results.to_csv(
+        motifs_outfn,
+        compression="gzip",
+        sep="\t",
+        index=False,
+    )
+    shutil.rmtree(motif_search.outdir)
+    return motif_search, kwargs
+
+
+def _dict_to_df(d: dict) -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "Run_id": [
+                d["seq_id"]
+                .replace(":", "_")
+                .replace("(+)", "")
+                .replace("(-)", "")
+                .replace("-", "_")
+            ],
+            "Seed": [0],
+            "Seq_id": [d["seq_id"]],
+            "Phenotype": ["wt"],
+            "Sequence": [d["seq"]],
+            "Splice_site_positions": [
+                ";".join([str(x) for sublist in d["ss_idx"] for x in sublist])
+            ],
+            "Score": [d["score"]],
+            "Delta_score": [0],
+        }
+    )
 
 
 def random_seq(

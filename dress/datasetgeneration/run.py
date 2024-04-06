@@ -487,7 +487,7 @@ def grammar_options(fun):
         "--motif_db",
         type=click.Choice(["oRNAment", "ATtRACT", "cisBP_RNA"]),
         default="ATtRACT",
-        help="PWM motif reportoire to use when '--which_grammar' is 'motif_based'.",
+        help="PWM motif reportoire to use when '--which_grammar' is 'motif_based'. Default: 'ATtRACT'",
     )(fun)
 
     fun = click.option(
@@ -495,7 +495,7 @@ def grammar_options(fun):
         "--motif_search",
         type=click.Choice(["plain", "fimo"]),
         default="fimo",
-        help="Motif search strategy to employ in the original sequence when when '--which_grammar' is 'motif_based'.",
+        help="Motif search strategy to employ in the original sequence when when '--which_grammar' is 'motif_based'. Default: 'fimo'",
     )(fun)
 
     fun = click.option(
@@ -505,7 +505,7 @@ def grammar_options(fun):
         type=tuple,
         cls=OptionEatAll,
         default=["encode"],
-        help="Subset the PWM motifs to use when '--which_grammar' is 'motif_based'.. Default: ['encode'], list of "
+        help="Subset the PWM motifs to use when '--which_grammar' is 'motif_based'. Default: 'encode', list of "
         "splicing-associated RBPs identified in the context of the ENCODE project.",
     )(fun)
 
@@ -515,7 +515,7 @@ def grammar_options(fun):
         type=float,
         default=0.15,
         help="Minimum probability for a nucleotide in a given position of the PWM "
-        "for it to be considered as relevant when '--which_grammar' is 'motif_based'.",
+        "for it to be considered as relevant when '--which_grammar' is 'motif_based'. Default: 0.15",
     )(fun)
 
     fun = click.option(
@@ -523,7 +523,7 @@ def grammar_options(fun):
         "--min_motif_length",
         type=int,
         default=5,
-        help="Minimum length of a sequence motif when '--which_grammar' is 'motif_based'.",
+        help="Minimum length of a sequence motif when '--which_grammar' is 'motif_based'. Default: 5",
     )(fun)
 
     fun = click.option(
@@ -531,7 +531,7 @@ def grammar_options(fun):
         "--pvalue_threshold",
         type=float,
         default=0.0001,
-        help="Maximum p-value threshold from FIMO output to consider a motif occurrence as valid when '--which_grammar' is 'motif_based'.",
+        help="Maximum p-value threshold from FIMO output to consider a motif occurrence as valid when '--which_grammar' is 'motif_based'. Default: 0.0001",
     )(fun)
 
     return fun

@@ -57,7 +57,7 @@ class MotifSearch:
         os.makedirs(self.outdir, exist_ok=True)
         self.outbasename = assign_proper_basename(kwargs.get("outbasename"))
         self.wt_seq_ids = _get_wt_seq_ids(self.dataset, self.logger) 
-
+        self._do_scan = kwargs.get("do_scan", True)
         to_flat = False if self.motif_search == "biopython" else True
         if self.motif_db in ["rosina2017", "encode2020_RBNS"]:
             self.motifs = self._read_rosina()
@@ -73,9 +73,36 @@ class MotifSearch:
 
     def scan(): ...
 
+    def process_hits(self, raw_hits: pd.DataFrame) -> pd.DataFrame:
+        """
+        Run additional processing on the raw hits
+
+        Args:
+            raw_hits(pd.DataFrame): Raw hits from motif scanning
+        
+        Returns:
+            pd.DataFrame: Final processed hits
+        """
+        if raw_hits.empty:
+            self.logger.warning(
+                f"No motif hits found using {self.motif_search} search against {self.motif_db} database"
+                )
+            raise ValueError
+        
+        else:
+            self.logger.info("Done. {} raw hits found".format(raw_hits.shape[0]))
+
+        if not self.skip_raw_motifs_filtering:
+            df = self.filter_raw_output(raw_hits)
+
+        if not self.skip_location_mapping:
+            df = self.add_motif_location(raw_hits)
+
+        return df
+    
     def filter_raw_output(self, raw_hits: pd.DataFrame) -> pd.DataFrame:
         """
-        Filters motif results
+        Filter raw motif results
 
         Args:
             raw_hits(pd.DataFrame): Results from motif scanning
@@ -485,7 +512,8 @@ class PlainSearch(MotifSearch):
     def __init__(self, dataset: pd.DataFrame, subset_rbps: Union[str, list] = "encode", **kwargs):
         super().__init__(dataset=dataset, subset_rbps=subset_rbps, **kwargs)
         assert self.motif_search == "plain"
-        self.motif_results = self.scan()
+        if self._do_scan:
+            self.motif_results = self.scan()
 
     def scan(self):
         """
@@ -508,10 +536,6 @@ class PlainSearch(MotifSearch):
         :return pd.DataFrame: Df with the counts of each
         motif of each RBP on each sequence
         """
-        self.logger.info(
-            f"Searching motifs in {self.dataset.shape[0]} sequences using a plain search",
-        )
-
         def _scan(row: pd.Series, motifs: dict):
             res = []
             # for each RBP
@@ -558,14 +582,8 @@ class PlainSearch(MotifSearch):
             ],
         )
 
-        self.logger.info("Done. {} hits found".format(df.shape[0]))
-        if not self.skip_raw_motifs_filtering:
-            df = self.filter_raw_output(df)
+        return self.process_hits(df)
 
-        if not self.skip_location_mapping:
-            df = self.add_motif_location(df)
-
-        return df
 
 
 class FimoSearch(MotifSearch):
@@ -592,7 +610,8 @@ class FimoSearch(MotifSearch):
 
         self.pvalue_threshold = kwargs.get("pvalue_threshold", 0.0001)
         self.qvalue_threshold = kwargs.get("qvalue_threshold", None)
-        self.motif_results = self.scan()
+        if self._do_scan:
+            self.motif_results = self.scan()
 
     def scan(self):
         """
@@ -759,15 +778,7 @@ class FimoSearch(MotifSearch):
             os.remove(fasta_files)
 
         df = df.drop_duplicates(["Seq_id", "RBP_name", "Start", "End"], keep="first")
-        self.logger.info("Done. {} hits found".format(df.shape[0]))
-
-        if not self.skip_raw_motifs_filtering:
-            df = self.filter_raw_output(df)
-
-        if not self.skip_location_mapping:
-            df = self.add_motif_location(df)
-
-        return df
+        return self.process_hits(df)
 
 
 class BiopythonSearch(MotifSearch):
@@ -796,8 +807,8 @@ class BiopythonSearch(MotifSearch):
                 raise ValueError(
                     '"--just_estimate_pssm_threshold" is available when scanning PSSMs of a single RBP.'
                 )
-
-        self.motif_results = self.scan()
+        if self._do_scan:
+            self.motif_results = self.scan()
 
     def scan(self):
         """
@@ -924,18 +935,7 @@ class BiopythonSearch(MotifSearch):
             ],
         )
 
-        #  self.logger.info("Selecting highest score for repeated motif matches")
-        # If match to different PWMs at the same positions, keep highest score
-        # idx = df.groupby(['Seq_id', 'RBP_name', 'Start', 'End'])['PSSM_score'].idxmax()
-        # df = df.loc[idx]
+        
         df = df.drop_duplicates(["Seq_id", "RBP_name", "Start", "End"], keep="first")
         df.round({"PSSM_score": 4})
-        self.logger.info("Done. {} hits found".format(df.shape[0]))
-
-        if not self.skip_raw_motifs_filtering:
-            df = self.filter_raw_output(df)
-
-        if not self.skip_location_mapping:
-            df = self.add_motif_location(df)
-
-        return df
+        return self.process_hits(df)

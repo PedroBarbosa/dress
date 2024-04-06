@@ -75,4 +75,4 @@ generate:
     subset_rbps: 'encode'
     min_nucleotide_probability: 0.15
     min_motif_length: 5
-    qvalue_threshold: 0.01
+    pvalue_threshold: 0.0001
