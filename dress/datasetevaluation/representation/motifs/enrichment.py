@@ -7,8 +7,6 @@ from dress.datasetevaluation.representation.motifs.utils import _dataset_to_fast
 from dress.datasetgeneration.dataset import Dataset
 from dress.datasetgeneration.logger import setup_logger
 from dress.datasetgeneration.os_utils import assign_proper_basename
-from scipy.stats import fisher_exact
-from statsmodels.stats.multitest import multipletests
 from matplotlib import pyplot as plt
 import seaborn as sns
 
@@ -75,7 +73,7 @@ class StremeEnrichment(MotifEnrichment):
             "streme",
             "--objfun",
             "de",
-           # "--no-pgc",
+            "--no-pgc",
             "--rna",
             "--hofract",
             "0.1",
@@ -119,68 +117,4 @@ class StremeEnrichment(MotifEnrichment):
         Args:
             df (pd.DataFrame): Dataframe with motif enrichment results
         """
-        pass
-        # if not hasattr(self, "results"):
-        #     self.logger.warning("No motif enrichment results found for visualization.")
-        #     return
-
-        # df = self.results.copy()
-
-        # # Sort by average corrected p-value
-        # df_avg = (
-        #     df.groupby("RBP")["p_value_corrected"]
-        #     .mean()
-        #     .reset_index(name="avg_p_value_corrected")
-        # )
-        # df = df.merge(df_avg, on="RBP")
-        # df = df.sort_values("avg_p_value_corrected", ascending=True)
-
-        # # Plot just top 50 motifs
-
-        # if df["RBP"].nunique() > 50:
-        #     self.logger.info("INFO", "Plotting just the top 50 motifs")
-
-        #     top_50_motifs = df.RBP.drop_duplicates(keep="first").tolist()
-        #     df = df[df.RBP.isin(top_50_motifs[:50])]
-
-        # _, ax = plt.subplots(figsize=(4, 7))
-
-        # # Create stripplot
-        # sns.stripplot(
-        #     data=df,
-        #     x="p_value_corrected",
-        #     y="RBP",
-        #     dodge=True,
-        #     jitter=True,
-        #     palette="Blues",
-        #     size=6,
-        #     alpha=0.7,
-        #     hue=df["p_value_corrected"] < 0.05,
-        #     hue_order=[True, False],
-        #     legend=False,
-        #     linewidth=1,
-        #     edgecolor="black",
-        #     clip_on=False,
-        #     ax=ax,
-        # )
-
-        # ax.axvline(x=0.05, color="black", linestyle="--")
-        # ax.text(0.05, 1.01, "0.05", transform=ax.get_xaxis_transform(), fontsize=8)
-
-        # # ax.set_xlim([0, 0.2])
-        # ax.set_yticks(ax.get_yticks())
-        # ax.set_yticklabels(ax.get_yticklabels(), va="center", fontsize=8)
-        # ax.set_xlabel("Corrected p-value")
-        # ax.set_ylabel("")
-
-        # # handles, _ = ax.get_legend_handles_labels()
-        # # ax.legend(handles, ["Significant (p < 0.05)", "Non-significant"], loc="lower right")
-
-        # plt.savefig(
-        #     os.path.join(
-        #         self.outdir,
-        #         f"{self.outbasename}{self.specific_basename}fisher_enrichment.pdf",
-        #     ),
-        #     bbox_inches="tight",
-        # )
-        # plt.close()
+        ...

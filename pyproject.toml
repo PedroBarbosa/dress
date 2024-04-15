@@ -9,7 +9,7 @@ authors = [
     {name = "Pedro Barbosa", email = "psbpedrobarbosa@gmail.com"},
 ]
 
-version = "0.0.1"
+version = "0.1.0"
 readme = "README.md"
 requires-python = "~=3.10"
 
@@ -23,7 +23,7 @@ text = "https://opensource.org/licenses/GPL-3.0"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["dress", "dress.datasetevaluation", "dress.datasetexplanation", "dress.datasetgeneration", "dress.datasetfilter"]
+include = ["dress", "dress.datasetgeneration", "dress.datasetfilter"]
 
 [tool.ruff]
 line-length = 120

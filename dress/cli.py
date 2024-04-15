@@ -5,12 +5,8 @@ __version__ = importlib.metadata.version("dress")
 
 from dress.datasetgeneration.validate_args import GENERATE_GROUP_OPTIONS
 from dress.datasetfiltering.validate_args import FILTER_GROUP_OPTIONS
-from dress.datasetevaluation.validate_args import EVALUATE_GROUP_OPTIONS
-from dress.datasetexplanation.validate_args import EXPLAIN_GROUP_OPTIONS
 from dress.datasetgeneration import run as generate
 from dress.datasetfiltering import run as filtration
-from dress.datasetevaluation import run as evaluate
-from dress.datasetexplanation import run as explain
 
 import os
 
@@ -22,14 +18,12 @@ click.rich_click.APPEND_METAVARS_HELP = True
 click.rich_click.OPTION_GROUPS = {
     **GENERATE_GROUP_OPTIONS,
     **FILTER_GROUP_OPTIONS,
-    **EVALUATE_GROUP_OPTIONS,
-    **EXPLAIN_GROUP_OPTIONS
 }
 click.rich_click.COMMAND_GROUPS = {
     "dress": [
         {
             "name": "Commands",
-            "commands": ["generate", "filter", "evaluate", "explain"],
+            "commands": ["generate", "filter"],
         },
     ]
 }
@@ -49,8 +43,6 @@ def cli():
 
 cli.add_command(generate.generate, "generate")
 cli.add_command(filtration.filter, "filter")
-cli.add_command(evaluate.evaluate, "evaluate")
-cli.add_command(explain.explain, "explain")
 
 if __name__ == "__main__":
     cli()
