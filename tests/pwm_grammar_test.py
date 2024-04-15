@@ -32,6 +32,7 @@ def get_grammar(input_seq: dict, subset_rbps: Union[list, str] = None):
         motif_substitution_weight=0.2,
         motif_ablation_weight=0.2,
         outdir=outdir,
+        outbasename="test",
         logger=setup_logger(),
         subset_rbps="encode" if subset_rbps is None else subset_rbps,
     )
