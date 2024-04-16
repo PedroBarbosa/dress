@@ -1,6 +1,8 @@
 import gzip
+import os
 import shutil
 import pytest
+import tempfile
 from dress.datasetgeneration.os_utils import open_fasta
 from dress.datasetgeneration.preprocessing.utils import tabular_file_to_genomics_df
 from dress.datasetgeneration.preprocessing.gtf_cache import (
@@ -8,13 +10,16 @@ from dress.datasetgeneration.preprocessing.gtf_cache import (
     generate_pipeline_input,
 )
 
-raw_data = "tests/data/raw_data.tsv"
-cache_dir = "tests/data"
-genome_c = "tests/data/chr22.fa.gz"
-genome = genome_c.replace(".gz", "")
+
+abs_path = os.path.dirname(os.path.abspath(__file__))
+raw_data = os.path.join(abs_path,"data/raw_data.tsv")
+cache_dir = os.path.join(abs_path,"data")
+genome_c =  os.path.join(abs_path, "data/chr22.fa.gz")
 level = 2
 
 with gzip.open(genome_c, "rb") as f_in:
+    tmp_f = tempfile.NamedTemporaryFile()
+    genome = tmp_f.name
     with open(genome, "wb") as f_out:
         shutil.copyfileobj(f_in, f_out)
 
