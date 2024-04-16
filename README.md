@@ -10,12 +10,12 @@ As for now, the package contains two commands:
 
 ## Installation
 
-Via conda/mamba:
+Clone the repo, take care of dependencies with `conda` or `mamba` and install the package with `pip`:
 
 ```
 git clone https://github.com/PedroBarbosa/dress.git
 cd dress
-conda env create -f canda_env.yml
+conda env create -f conda_env.yml
 conda activate dress
 pip install .
 ```
