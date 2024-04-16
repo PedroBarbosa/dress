@@ -1,6 +1,13 @@
-name: Python Package using Conda
+name: pytest
 
-on: [push]
+on:
+  push:
+    branches:
+      - main
+      - dev_expl
+  pull_request:
+    branches:
+      - main
 
 jobs:
   build:
@@ -13,7 +20,7 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-    - name: Set up Python 3.10
+    - name: Set up Python 
       uses: actions/setup-python@v3
       with:
         python-version: ${{ matrix.python-version }}
@@ -37,4 +44,5 @@ jobs:
     - name: Test with pytest
       run: |
         pip install pytest
-        pytest
+        # Ignore tests that should use GPU
+        pytest --ignore=tests/black_box_test.py --ignore=tests/prune_archive_test.py 
