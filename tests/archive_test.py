@@ -1,14 +1,12 @@
 from dress.datasetgeneration.dataset import Dataset
 from dress.datasetgeneration.archive import Archive
 import numpy as np
-
-dataset = Dataset(
-    "tests/data/dataset.csv.gz", original_seq="tests/data/dataset_original_seq.csv"
+import os 
+dataset = Dataset(f"{os.path.dirname(os.path.abspath(__file__))}/data/dataset.csv.gz"
 )
 
-
 class TestFromGeneratedDataset:
-    archive = Archive(diversity_metric="normalized_shannon", dataset=dataset.data)
+    archive = Archive(diversity_metric="normalized_shannon", dataset=dataset.data.iloc[1:])
 
     def test_archive_size(self):
         assert len(self.archive) == 4983
@@ -31,7 +29,7 @@ class TestFromGeneratedDataset:
         assert metrics["Empty_bin_ratio"] == 0
         assert metrics["Low_count_bin_ratio"] == 0
         assert metrics["Avg_number_diff_units"] == 4.6903
-        assert metrics["Avg_edit_distance"] == 6.7642
+        assert metrics["Avg_edit_distance"] == 10.0281
 
     def test_archive_slicing(self):
         assert len(self.archive[:]) == len(self.archive)

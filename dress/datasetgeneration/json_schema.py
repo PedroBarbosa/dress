@@ -8,6 +8,7 @@ schema = {
                 "dry_run": {"type": "boolean"},
                 "disable_gpu": {"type": "boolean"},
                 "verbosity": {"type": "integer"},
+                "shuffle_input": {"type": ["null", "string"]},
                 "outdir": {"type": "string"},
                 "outbasename": {"type": ["null", "string"]},
                 "seed": {"type": "integer"},
@@ -40,10 +41,6 @@ schema = {
                 "population": {
                     "type": "object",
                     "properties": {"population_size": {"type": "integer"}},
-                },
-                "individual": {
-                    "type": "object",
-                    "properties": {"representation": {"type": "string"}},
                 },
                 "selection": {
                     "type": "object",
@@ -99,12 +96,13 @@ schema = {
                 "grammar": {
                     "type": "object",
                     "properties": {
+                        "which_grammar": {"type": "string"},
                         "max_diff_units": {"type": "integer"},
                         "snv_weight": {"type": "number"},
                         "insertion_weight": {"type": "number"},
                         "deletion_weight": {"type": "number"},
-                        "max_insertion_size": {"type": "integer"},
-                        "max_deletions_size": {"type": "integer"},
+                        "motif_substitution_weight": {"type": "number"},
+                        "motif_deletion_weight": {"type": "number"},
                         "acceptor_untouched_range": {
                             "type": "array",
                             "items": {"type": "integer"},
@@ -119,6 +117,14 @@ schema = {
                                 {"type": "array", "items": {"type": "string"}},
                             ]
                         },
+                        "max_insertion_size": {"type": "integer"},
+                        "max_deletions_size": {"type": "integer"},
+                        "motif_db": {"type": "string"},
+                        "motif_search": {"type": "string"},
+                        "subset_rbps": {"type": "string"},
+                        "min_nucleotide_probability": {"type": "number"},
+                        "min_motif_length": {"type": "integer"},
+                        "pvalue_threshold": {"type": "number"},
                     },
                 },
             },
@@ -128,7 +134,6 @@ schema = {
                 "fitness",
                 "archive",
                 "population",
-                "individual",
                 "selection",
                 "stopping",
                 "tracking_evolution",

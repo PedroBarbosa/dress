@@ -171,9 +171,7 @@ __pycache__/
 build/
 dist/
 
+tests/motifs
 data/cache/*
-data/examples/explain
-dress/datasetevaluation
-dress/datasetexplanation
 output*
 .devcontainer

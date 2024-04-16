@@ -6,13 +6,14 @@ __version__ = importlib.metadata.version("dress")
 from dress.datasetgeneration.validate_args import GENERATE_GROUP_OPTIONS
 from dress.datasetfiltering.validate_args import FILTER_GROUP_OPTIONS
 from dress.datasetgeneration import run as generate
-from dress.datasetfiltering import run as filter
+from dress.datasetfiltering import run as filtration
 
 import os
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 
 click.rich_click.SHOW_METAVARS_COLUMN = False
+
 click.rich_click.APPEND_METAVARS_HELP = True
 click.rich_click.OPTION_GROUPS = {
     **GENERATE_GROUP_OPTIONS,
@@ -41,8 +42,7 @@ def cli():
 
 
 cli.add_command(generate.generate, "generate")
-cli.add_command(filter.filter, "filter")
-
+cli.add_command(filtration.filter, "filter")
 
 if __name__ == "__main__":
     cli()

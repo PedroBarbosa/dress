@@ -257,17 +257,26 @@ class Archive(object):
 
         else:
             spanned = 0
-
+            
             for diff_unit in ind.split("|"):
-                if "RandomDeletion" in diff_unit:
-                    n = list(map(int, re.findall("\d+", diff_unit)))
+                # Random Grammar
+                # Deletion[184,185,Intron_upstream,130]
+                if diff_unit.startswith('Deletion'):
+                    n = list(map(int, re.findall("\d+", diff_unit)))[0:2]
                     spanned += n[1] - n[0] + 1
-                elif "RandomInsertion" in diff_unit:
-                    spanned += len(re.findall(",(.+)\]", diff_unit)[0])
-                elif "SNV" in diff_unit:
+
+                # Insertion[362,AG,Exon_cassette,14]
+                elif diff_unit.startswith('Insertion'):
+                    spanned += len(diff_unit.split(',')[1])
+                elif diff_unit.startswith("SNV"):
+                    spanned += 1
+                
+                # Motif-based Grammar
+                elif diff_unit.startswith(('MotifDeletion', 'MotifInsertion', 'MotifSubstitution', 'MotifAblation')):
+                    spanned += int(diff_unit.split(',')[2])
+                elif diff_unit.startswith('MotifSNV'):
                     spanned += 1
                 else:
-                    print(ind)
                     raise ValueError(
                         f"Unable to parse individual string representation: {ind}"
                     )
@@ -442,6 +451,6 @@ class UpdateArchive(GeneticStep):
 
         self.archive.ids.append(str(ind))
         self.archive.seqs.append(ind.seq)
-        ind.seq = ""  # Free memory
+        ind.seq = ""
         self.archive.instances.append(ind)
         self.archive.predictions.append(ind.pred)

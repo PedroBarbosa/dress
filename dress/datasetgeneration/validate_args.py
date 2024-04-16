@@ -1,3 +1,4 @@
+import os
 import rich_click as click
 import yaml
 from jsonschema import ValidationError, validate
@@ -8,6 +9,7 @@ GENERATE_GROUP_OPTIONS = {
         {
             "name": "Input / Output options",
             "options": [
+                "--shuffle_input",
                 "--outdir",
                 "--outbasename",
                 "--cache_dir",
@@ -16,18 +18,33 @@ GENERATE_GROUP_OPTIONS = {
             ],
         },
         {
-            "name": "Grammar and restriction of the search space",
+            "name": "Grammar options and restriction of the search space",
             "options": [
+                "--which_grammar",
                 "--max_diff_units",
-                "--max_insertion_size",
-                "--max_deletion_size",
                 "--snv_weight",
                 "--insertion_weight",
                 "--deletion_weight",
+                "--motif_ablation_weight",
+                "--motif_substitution_weight",
                 "--acceptor_untouched_range",
                 "--donor_untouched_range",
                 "--untouched_regions",
+                "--max_insertion_size",
+                "--max_deletion_size",
+                "--motif_db",
+                "--motif_search",
+                "--subset_rbps",
+                "--min_nucleotide_probability",
+                "--min_motif_length",
+                "--pvalue_threshold"
             ],
+        },
+        {
+            "name": "Motif based grammar options",
+            "options": [
+
+            ]
         },
         {
             "name": "Evolutionary algorithm",
@@ -58,7 +75,6 @@ GENERATE_GROUP_OPTIONS = {
                 "--custom_mutation_operator_weight",
                 "--prune_archive_individuals",
                 "--prune_at_generations",
-                "--individual_representation",
             ],
         },
         {
@@ -104,8 +120,13 @@ def check_args(args) -> dict:
             print(e)
             exit(1)
 
-        return args
+        args["config"] = None
+        return check_args(args)
 
+    # Cache dir
+    if not os.path.exists(args["cache_dir"]):
+        raise click.UsageError(f"Cache directory {args['cache_dir']} does not exist.")
+    
     # Selection operators
     if len(args["operators_weight"]) != len(args["elitism_weight"]) or len(
         args["elitism_weight"]
@@ -176,5 +197,9 @@ def check_args(args) -> dict:
         raise click.UsageError(
             f"Sum of weights for SNV, Insertions and Deletions can't exceed 1 (observed: {weight_sums})"
         )
+
+    if args["which_grammar"] == "motif_based":
+        if len(args["subset_rbps"]) == 1:
+            args["subset_rbps"] = args["subset_rbps"][0]
 
     return args
