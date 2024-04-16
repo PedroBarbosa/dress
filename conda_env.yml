@@ -14,7 +14,6 @@ dependencies:
        - git+https://github.com/tkzeng/Pangolin.git@5cf94b8 
        - pandas==2.0.3
        - numpy==1.23.5
-       - scikit-learn==1.4.0
        - pyranges==0.0.129
        - biopython==1.83
        - loguru
