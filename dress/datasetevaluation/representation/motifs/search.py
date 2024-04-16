@@ -629,6 +629,7 @@ class FimoSearch(MotifSearch):
         base_cmd = [
             "fimo",
             "--norc",
+            "--no-pgc",
             "--thresh",
             str(self.pvalue_threshold),
             "--bfile",
