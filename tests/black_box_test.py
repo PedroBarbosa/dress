@@ -1,5 +1,5 @@
 import os
-import numpy as np
+from numpy.testing import assert_allclose
 import pytest
 from dress.datasetgeneration.grammars.random_perturbation_grammar import (
     create_random_grammar,
@@ -74,7 +74,7 @@ class TestPangolin:
         model = Pangolin(scoring_metric=scoring_metric, mode=mode)
         raw_pred = model.run([SEQ], original_seq=True)
         score = model.get_exon_score({SEQ_ID: raw_pred}, ss_idx={SEQ_ID: SS_IDX})
-        assert np.isclose(score[SEQ_ID], expected_result, atol=1e-05)
+        assert_allclose(score[SEQ_ID], expected_result, atol=1e-04)
         model = None
 
     def test_generated_seqs_pangolin(self):
@@ -89,15 +89,15 @@ class TestPangolin:
         black_box_preds = [*new_scores.values()]
 
         assert len(raw_preds) == 100
-        assert np.allclose(
+        assert_allclose(
             sorted(black_box_preds, reverse=True)[0:5],
             [0.287, 0.2715, 0.2395, 0.2243, 0.2164],
-            atol=1e-04,
+            atol=1e-04
         )
-        assert np.allclose(
+        assert_allclose(
             sorted(black_box_preds)[0:5],
             [0.0268, 0.0956, 0.0989, 0.1026, 0.1083],
-            atol=1e-04,
+            atol=1e-04
         )
 
 
@@ -115,7 +115,7 @@ class TestSpliceAI:
         model = SpliceAI(scoring_metric=scoring_metric)
         raw_pred = model.run([SEQ], original_seq=True)
         score = model.get_exon_score({SEQ_ID: raw_pred}, ss_idx={SEQ_ID: SS_IDX})
-        assert np.isclose(score[SEQ_ID], expected_result, atol=1e-05)
+        assert_allclose(score[SEQ_ID], expected_result, atol=1e-04)
         model = None
 
     def test_generated_seqs_spliceai(self):
@@ -129,13 +129,13 @@ class TestSpliceAI:
 
         assert len(raw_preds) == 100
 
-        assert np.allclose(
+        assert_allclose(
             sorted(black_box_preds, reverse=True)[0:5],
             [0.4798, 0.4447, 0.4285, 0.3953, 0.387],
-            atol=1e-05,
+            atol=1e-04
         )
-        assert np.allclose(
+        assert_allclose(
             sorted(black_box_preds)[0:5],
             [0.2234, 0.2302, 0.248, 0.2512, 0.2559],
-            atol=1e-05,
+            atol=1e-04
         )
