@@ -23,7 +23,8 @@ jobs:
         echo $CONDA/bin >> $GITHUB_PATH
     - name: Install dependencies
       run: |
-        conda config --add channels conda-forge bioconda
+        conda config --add channels conda-forge 
+        conda config --add channels bioconda
         conda install -y python=${{ matrix.python-version }} meme=5.5.5
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
     - name: Lint with flake8
