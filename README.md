@@ -1,3 +1,5 @@
+[![pytest](https://github.com/PedroBarbosa/dress/actions/workflows/run_tests.yml/badge.svg)](https://github.com/PedroBarbosa/dress/actions/workflows/run_tests.yml)
+
 # DRESS - Deep learning-based Resource for Exploring Splicing Signatures
 
 A toolkit for generating synthetic datasets related to RNA splicing.
