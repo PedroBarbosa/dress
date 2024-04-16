@@ -25,7 +25,10 @@ jobs:
       run: |
         conda config --add channels conda-forge 
         conda config --add channels bioconda
+        conda update -n base conda
         conda install -y python=${{ matrix.python-version }} meme=5.5.5
+        conda install -n base conda-libmamba-solver
+        conda config --set solver libmamba
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
     - name: Lint with flake8
       run: |
