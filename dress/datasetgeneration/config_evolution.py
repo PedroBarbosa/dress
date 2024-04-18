@@ -61,11 +61,9 @@ from geneticengine.core.representations.tree.treebased import TreeBasedRepresent
 from dress.datasetgeneration.os_utils import dump_yaml
 
 
-def _is_valid_individual(
-    ind: Individual, regions: List[range]
-) -> bool:
+def _is_valid_individual(ind: Individual, regions: List[range]) -> bool:
     """
-    Checks if an individual still holds a valid genotype 
+    Checks if an individual still holds a valid genotype
     after removing overlaps with forbidden regions
     """
     _genotype = ind.get_phenotype().exclude_forbidden_regions(regions)  # type: ignore
@@ -107,11 +105,7 @@ def correct_phenotypes(
                     genotype_to_phenotype=rep.genotype_to_phenotype,  # type: ignore
                 )
                 is_valid = (
-                    True
-                    if _is_valid_individual(
-                        _ind, excluded_regions
-                    )
-                    else False
+                    True if _is_valid_individual(_ind, excluded_regions) else False
                 )
 
             new_pop.append(_ind)  # type: ignore
@@ -311,9 +305,12 @@ def configureEvolution(
     # Deep learning model
     scoring_metric = kwargs["model_scoring_metric"]
     if kwargs["model"] == "spliceai":
-        oracle_model = SpliceAI(scoring_metric=scoring_metric)
+        oracle_model = SpliceAI(
+            batch_size=kwargs["batch_size"], scoring_metric=scoring_metric
+        )
     elif kwargs["model"] == "pangolin":
         oracle_model = Pangolin(
+            batch_size=kwargs["batch_size"],
             scoring_metric=scoring_metric,
             mode=kwargs["pangolin_mode"],
             tissue=kwargs["pangolin_tissue"],

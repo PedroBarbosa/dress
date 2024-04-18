@@ -5,6 +5,7 @@ generate:
   shuffle_input: 
   seed: 0
   model: spliceai
+  batch_size: 64
   model_scoring_metric: mean
   pangolin_mode: ss_usage
   pangolin_tissue: null
