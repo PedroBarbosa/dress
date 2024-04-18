@@ -156,7 +156,13 @@ def evo_alg_options_generate(fun):
         default="spliceai",
         help="Deep learning model to use as the reference for the evolutionary algorithm. Default: spliceai",
     )(fun)
-
+    fun = click.option(
+        "-bs",
+        "--batch_size",
+        type=int,
+        default=64,
+        help="Number of sequences to make predictions for, at each model forward pass. Default: 64",
+    )(fun)
     fun = click.option(
         "-msm",
         "--model_scoring_metric",

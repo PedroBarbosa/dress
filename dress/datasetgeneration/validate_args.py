@@ -51,6 +51,7 @@ GENERATE_GROUP_OPTIONS = {
             "options": [
                 "--seed",
                 "--model",
+                "--batch_size",
                 "--model_scoring_metric",
                 "--pangolin_mode",
                 "--pangolin_tissue",
