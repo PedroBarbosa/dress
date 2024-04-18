@@ -1,3 +1,4 @@
+import sys
 import rich_click as click
 import os
 import re
@@ -556,10 +557,10 @@ def grammar_options(fun):
     type=click.Choice(["dinuc_shuffle", "shuffle", "random"], case_sensitive=True),
     default=None,
     help="Shuffle input sequence(s) using one of three strategies. 'dinuc_shuffle' will shuffle the input sequence by keeping "
-        "the same dinucleotide frequencies as the original sequence. 'shuffle' will shuffle the input sequence such that "
-        "the frequency of each nucleotide remains the same. 'random' will generate a random sequence of the same size of the "
-        "input. Default: 'None', don't shuffle input. Importantly, restrictions on the search space ('--untouched_regions', "
-        "'--acceptor_untouched_range', '--donor_untouched_range') will remain unshuffled.",
+    "the same dinucleotide frequencies as the original sequence. 'shuffle' will shuffle the input sequence such that "
+    "the frequency of each nucleotide remains the same. 'random' will generate a random sequence of the same size of the "
+    "input. Default: 'None', don't shuffle input. Importantly, restrictions on the search space ('--untouched_regions', "
+    "'--acceptor_untouched_range', '--donor_untouched_range') will remain unshuffled.",
 )
 @click.option(
     "-od",
@@ -638,6 +639,7 @@ def generate(**args):
     """
     args = check_args(args)
     args["logger"] = setup_logger(level=int(args["verbosity"]))
+    args["logger"].info(f"Command used: {' '.join(sys.argv)}")
     os.makedirs(args["outdir"], exist_ok=True)
 
     if any(args["input"].endswith(ext) for ext in ["fa", "fasta"]):
