@@ -13,6 +13,7 @@ schema = {
                 "outbasename": {"type": ["null", "string"]},
                 "seed": {"type": "integer"},
                 "model": {"type": "string"},
+                "batch_size": {"type": "integer"},
                 "model_scoring_metric": {"type": "string"},
                 "pangolin_mode": {"type": "string"},
                 "pangolin_tissue": {"type": ["null", "string"]},
