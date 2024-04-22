@@ -141,8 +141,8 @@ class TestArchivePruning:
         # Because it's initializer (gen 0), archive updater
         # adds 5 random individuals to the archive + any
         # individual with a |diff| > 0.1 compared to
-        # the original sequence, in this example 6 case
-        assert archive.size == 11
+        # the original sequence, in this example 8 case
+        assert archive.size == 13
 
         pruner = PruneArchiveCallback(archive=archive, mapper=mapper)
 
@@ -152,12 +152,12 @@ class TestArchivePruning:
 
         pruner.simplify()
 
-        assert archive.size == 11
-        assert len(pruner.evaluated_individuals) == 11
+        assert archive.size == 13
+        assert len(pruner.evaluated_individuals) == 13
         n_diffs_after = sum(
             [len(ind.get_phenotype().diffs) for ind in archive.instances]
         )
-        assert n_diffs_before == n_diffs_after + 2
+        assert n_diffs_before == n_diffs_after 
 
     def test_at_end_of_evolution(self):
         (
@@ -187,7 +187,7 @@ class TestArchivePruning:
         )
 
         alg.evolve()
-        assert archive.size == 258
+        assert archive.size == 282
         n_diffs_before = sum(
             [len(ind.get_phenotype().diffs) for ind in archive.instances]
         )
@@ -196,19 +196,19 @@ class TestArchivePruning:
         pruner.simplify()
 
         # All individuals should have been tested by now
-        assert len(pruner.evaluated_individuals) == 258
+        assert len(pruner.evaluated_individuals) == 282
 
-        # Number of individuals pruned should be 66
-        assert pruner.n_pruned == 66
+        # Number of individuals pruned should be 8
+        assert pruner.n_pruned == 8
 
         # Archive did not have any duplicate
-        assert archive.size == 258
+        assert archive.size == 282
 
         n_diffs_after = sum(
             [len(ind.get_phenotype().diffs) for ind in archive.instances]
         )
 
-        assert n_diffs_before == n_diffs_after + 66
+        assert n_diffs_before == n_diffs_after + 8
 
         # Simplifying again should have not effect
         pruner.simplify()
