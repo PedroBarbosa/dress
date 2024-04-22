@@ -86,16 +86,14 @@ from dress.datasetfiltering.filtering import ArchiveFilter
     "between 0.45 and 0.55. For a '--target_dpsi - 0.2' and '--allowed_variability 0.05', the filtering returns "
     "sequences centered at the (original score - 0.2) +- 0.05.",
 )
-
 @click.option(
     "-t",
     "--tag",
-    type=click.Choice(["lower", "higher", "equal"]),
+    type=click.Choice(["lower", "higher", "equal", "different"]),
     help="Tag to filter the dataset. Choose 'lower' to include sequences with scores lower than the original, "
-    "'higher' for sequences with scores higher than the original, and 'equal' for sequences with scores similar "
-    "to the original.",
+    "'higher' for sequences with scores higher than the original, 'equal' for sequences with scores similar "
+    "to the original and 'different' for sequences with scores different (lower and higher) than the original.",
 )
-
 @click.option(
     "-ds",
     "--delta_score",
@@ -106,7 +104,7 @@ from dress.datasetfiltering.filtering import ArchiveFilter
     "'--delta_score 0.1', the dataset will be filtered to include sequences with scores less than 0.6. "
     "When '--tag equal' is used, this option represents the maximum delta score allowed. For example, "
     "with an original sequence score of 0.3, and the options '--tag equal' and '--delta_score 0.1', the "
-    "dataset will be filtered to include sequences with scores between 0.2 and 0.4."
+    "dataset will be filtered to include sequences with scores between 0.2 and 0.4.",
 )
 def filter(**args):
     """
@@ -114,7 +112,8 @@ def filter(**args):
 
     If '--target_psi' is provided, the dataset(s) will be filtered to include sequences predicted at this particular level of inclusion.\n
     If '--target_dPSI' is provided, the dataset(s) will be filtered to include sequences that mimic a particular level of delta PSI in \
-model predictions relative to the original sequence."
+model predictions relative to the original sequence.\n
+    If '--tag' is provided, the dataset(s) will be filtered according textual tags in respect to the score of the original sequence.
     """
     args = check_args(args)
     args["logger"] = setup_logger(level=0)
