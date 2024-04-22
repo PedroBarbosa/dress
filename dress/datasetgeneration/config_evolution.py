@@ -114,7 +114,7 @@ def correct_phenotypes(
                     genotype_to_phenotype=rep.genotype_to_phenotype,  # type: ignore
                 )
                 is_valid = (
-                    True if _is_valid_individual(ind, original_seq, excluded_regions, rs) else False
+                    True if _is_valid_individual(_ind, original_seq, excluded_regions, rs) else False
                 )
 
             new_pop.append(_ind)  # type: ignore
