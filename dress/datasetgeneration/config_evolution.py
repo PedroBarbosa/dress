@@ -61,12 +61,18 @@ from geneticengine.core.representations.tree.treebased import TreeBasedRepresent
 from dress.datasetgeneration.os_utils import dump_yaml
 
 
-def _is_valid_individual(ind: Individual, regions: List[range]) -> bool:
+def _is_valid_individual(
+    ind: Individual, seq: str, regions: List[range], r: RandomSource
+) -> bool:
     """
     Checks if an individual still holds a valid genotype
     after removing overlaps with forbidden regions
     """
     _genotype = ind.get_phenotype().exclude_forbidden_regions(regions)  # type: ignore
+    if _genotype is None:
+        return False
+
+    _genotype = _genotype.remove_diffunit_overlaps(seq, r)
     return False if _genotype is None else True
 
 
@@ -76,7 +82,7 @@ def correct_phenotypes(
     excluded_regions: List[range],
     grammar: Grammar,
     rep: Union[TreeBasedRepresentation, GrammaticalEvolutionRepresentation],
-    random_source: RandomSource,
+    rs: RandomSource,
 ) -> list[Individual]:
     """
     Checks generated individuals and corrects some incongruences that
@@ -85,7 +91,10 @@ def correct_phenotypes(
     Args:
         population (list[Individual]): A list of `Individual` objects representing the individuals to fix.
         input_seq (dict): Dictionary with several attributes about the original sequence.
-        excluded_regions (List[range]): Restricted intervals that will not be mutated
+        excluded_regions (List[range]): Restricted intervals that will not be perturbed
+        grammar (Grammar): Grammar object.
+        rep (Union[TreeBasedRepresentation, GrammaticalEvolutionRepresentation]): Representation object.
+        rs (RandomSource): Random source object.
 
     Returns:
         A list of fixed individuals
@@ -94,18 +103,18 @@ def correct_phenotypes(
 
     new_pop = []
     for ind in population:
-        if _is_valid_individual(ind, excluded_regions):
+        if _is_valid_individual(ind, original_seq, excluded_regions, rs):
             new_pop.append(ind)
 
         else:
             is_valid = False
             while is_valid is False:
                 _ind = Individual(
-                    genotype=rep.create_individual(r=random_source, g=grammar),
+                    genotype=rep.create_individual(r=rs, g=grammar),
                     genotype_to_phenotype=rep.genotype_to_phenotype,  # type: ignore
                 )
                 is_valid = (
-                    True if _is_valid_individual(_ind, excluded_regions) else False
+                    True if _is_valid_individual(ind, original_seq, excluded_regions, rs) else False
                 )
 
             new_pop.append(_ind)  # type: ignore
