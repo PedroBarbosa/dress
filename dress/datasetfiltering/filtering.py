@@ -14,19 +14,20 @@ class ArchiveFilter:
         target_psi: float = None,
         target_dpsi: float = None,
         allowed_variability: float = 0.05,
-        tag: Literal["higher", "lower", "equal"] = None,
+        tag: Literal["higher", "lower", "equal", "different"] = None,
         delta_score: float = 0.1,
         stack_datasets: bool = False,
         **kwargs,
     ):
         if isinstance(dataset, PairedDataset):
             self.info = [
-                (dataset.dataset1.score, dataset.dataset1.group),
-                (dataset.dataset2.score, dataset.dataset2.group),
+                (dataset.dataset1.wt_score, dataset.dataset1.group),
+                (dataset.dataset2.wt_score, dataset.dataset2.group),
             ]
         else:
-            self.info = [(dataset.score, dataset.group)]
+            self.info = [(dataset.wt_score, dataset.group)]
 
+        self.wt_seq = dataset.data.query("Phenotype == 'wt'")
         self.dataset = dataset
         self.target_psi = target_psi
         self.target_dpsi = target_dpsi
@@ -48,6 +49,7 @@ class ArchiveFilter:
             List[pd.DataFrame]: Return a list of filtered dataset(s).
         """
         _data = self.dataset.data.copy()
+        _data = _data[_data.Phenotype != "wt"]
         lists = []
         filtered = []
         if isinstance(self.dataset, PairedDataset):
@@ -89,7 +91,12 @@ class ArchiveFilter:
                     f"Filtered dataset has {len(_filtered)} sequences (min score={_filtered.Score.min()}, max score={_filtered.Score.max()})"
                 )
 
-                filtered.append(Dataset(_filtered, group=self.info[i][1]))
+                filtered.append(
+                    Dataset(pd.concat([self.wt_seq, _filtered]), group=self.info[i][1])
+                )
+
+        if not filtered:
+            exit(1)
 
         if len(filtered) == 2:
             if self.stack_datasets:
@@ -135,17 +142,22 @@ class ArchiveFilter:
     def _by_tag(self, data, original_score):
         archive = Archive(dataset=data)
         if self.tag == "lower":
-            _slice = archive[: original_score - self.delta_score]
+            _slice = archive[: original_score - self.delta_score].ids
 
         elif self.tag == "higher":
-            _slice = archive[original_score + self.delta_score :]
+            _slice = archive[original_score + self.delta_score :].ids
 
         elif self.tag == "equal":
             _slice = archive[
                 original_score - self.delta_score : original_score + self.delta_score
-            ]
+            ].ids
+        
+        elif self.tag == "different":
+            _slice1 = archive[: original_score - self.delta_score].ids
+            _slice2 = archive[original_score + self.delta_score :].ids
+            _slice = _slice1 + _slice2
 
-        return data[data.Phenotype.isin(_slice.ids)]
+        return data[data.Phenotype.isin(_slice)]
 
     def write_output(self):
         """
@@ -173,7 +185,9 @@ class ArchiveFilter:
 
             g1 = self.filtered.dataset1.group
             g2 = self.filtered.dataset2.group
-            outfile = f"{self.outdir}/{self.outbasename}_groups_{g1}_and_{g2}_dataset.csv.gz"
+            outfile = (
+                f"{self.outdir}/{self.outbasename}_groups_{g1}_and_{g2}_dataset.csv.gz"
+            )
             self.filtered.data.drop(columns=["id"]).to_csv(
                 outfile,
                 index=False,
@@ -182,7 +196,7 @@ class ArchiveFilter:
 
         # If a single dataset
         elif isinstance(self.filtered, Dataset):
-     
+
             outfile = f"{self.outdir}/{self.outbasename}_group_{self.filtered.group}_dataset.csv.gz"
             self.filtered.data.drop(columns=["id", "group"]).to_csv(
                 outfile,

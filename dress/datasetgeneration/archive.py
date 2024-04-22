@@ -362,13 +362,14 @@ class Archive(object):
 
         if start is None:
             start = 0
-        else:
-            assert start >= 0
+        elif start < 0:
+            start = 0
+        
         if stop is None:
             stop = 1.001
-        else:
-            assert stop <= 1
-
+        elif stop > 1:
+            stop = 1.001
+            
         _preds = np.array(self.predictions)
         indices = np.where((start <= _preds) & (_preds < stop))[0]
 
