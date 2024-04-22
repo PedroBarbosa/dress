@@ -40,8 +40,9 @@ class Dataset(object):
         self._wt_seq = self.data.iloc[0].Sequence
         self._wt_score = self.data.iloc[0].Score
         self._wt_ss = self.data.iloc[0].Splice_site_positions
-        #self._metrics = Archive(dataset=self.data.iloc[1:]).metrics
-        #self._quality = Archive(dataset=self.data.iloc[1:]).quality
+        if len(self.data) > 1:
+            self._metrics = Archive(dataset=self.data.iloc[1:]).metrics
+            self._quality = Archive(dataset=self.data.iloc[1:]).quality
 
     def __len__(self):
         return self.dataset_size
@@ -52,7 +53,7 @@ class Dataset(object):
     @property
     def id(self):
         return self._dt_id
-
+    
     @property
     def wt_sequence(self):
         return self._wt_seq
@@ -80,13 +81,13 @@ class Dataset(object):
 
     @property
     def metrics(self):
-        return self._metrics
+        return self._metrics if self._metrics else None
 
     @property
     def quality(self):
-        return self._quality
+        return self._quality if self._quality else None
 
-    def _load_from_df(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _load_from_df(self, dataset: pd.DataFrame) -> pd.DataFrame:
         """
         Load dataset(s) from a dataframe.
 
@@ -96,7 +97,7 @@ class Dataset(object):
         Returns:
             pd.DataFrame: Loaded dataset
         """
-        dataset = df.copy()
+        df = dataset.copy()
         expected_cols = [
             "Run_id",
             "Seed",
@@ -108,17 +109,17 @@ class Dataset(object):
             "Delta_score",
         ]
         assert all(
-            c in dataset.columns for c in expected_cols
+            c in df.columns for c in expected_cols
         ), "Dataset loaded from a dataframe must have the following columns: {}".format(
             "\n".join(expected_cols)
         )
-        dataset = dataset[expected_cols]
+        df = df[expected_cols]
         if self.group:
-            dataset["group"] = self.group
+            df["group"] = self.group
 
-        dataset = _remove_duplicates_across_seeds(dataset).reset_index(drop=True)
-        dataset = _increment_seq_id(dataset)
-        return _create_integer_id(dataset)
+        df = _remove_duplicates_across_seeds(df).reset_index(drop=True)
+        df = _increment_seq_id(df)
+        return _create_integer_id(df)
 
     def _load(self, dataset=Union[str, list, tuple]):
         """
@@ -143,6 +144,9 @@ class Dataset(object):
 
             elif os.path.isfile(dataset):
                 df = pd.read_csv(dataset)
+
+            else:
+                raise ValueError("Invalid dataset file or directory provided")
 
             # If multiple datasets within a single file, change a column to identify them
             if df.groupby("Seq_id").ngroups > 1:
@@ -295,6 +299,9 @@ def _increment_seq_id(df: pd.DataFrame) -> pd.DataFrame:
     """
     assert df.iloc[0].Phenotype == "wt", "First sequence must be the original one"
 
+    if df.Seq_id.nunique() == len(df):
+        return df
+    
     df_count = df.groupby("Seq_id").size().reset_index(name="counts")
 
     df = df.merge(df_count, on="Seq_id", how="left")
@@ -303,11 +310,12 @@ def _increment_seq_id(df: pd.DataFrame) -> pd.DataFrame:
     )
 
     df["Seq_id"] = (
-        df.Seq_id
+        df["Seq_id"]
         + "_g"
-        + df.group
-        + df._counter.apply(lambda x: "_" + x if x != "" else "")
+        + df["group"]
+        + df["_counter"].apply(lambda x: "_" + x if x != "" else "")
     )
+
     df = df.drop(columns=["counts", "_counter"])
 
     return df
