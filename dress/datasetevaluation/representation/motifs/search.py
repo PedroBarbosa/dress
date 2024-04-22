@@ -502,6 +502,7 @@ class MotifSearch:
                 self.motifs = {
                     k: v for k, v in self.motifs.items() if k in self.subset_rbps
                 }
+            self.logger.info(f"Motifs of {len(self.motifs)} RBPs will be scanned across the input sequences.")
 
 
 class PlainSearch(MotifSearch):

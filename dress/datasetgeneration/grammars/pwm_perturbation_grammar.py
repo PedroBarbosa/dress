@@ -152,7 +152,7 @@ def create_motif_grammar(
                 if isinstance(d, MotifSNV) and d.is_redundant(seq):
                     d.sample_new_nucleotide(rs)
 
-                if isinstance(d, MotifDeletion):
+                if isinstance(d, (MotifDeletion, MotifAblation)):
                     current_r = [
                         1,
                         d.position[0],
@@ -162,8 +162,8 @@ def create_motif_grammar(
                     ]
 
                 elif isinstance(
-                    d, (MotifInsertion, MotifSubstitution, MotifAblation, MotifSNV)
-                ):
+                    d, (MotifInsertion, MotifSubstitution, MotifSNV)
+                ):  
                     current_r = [1, d.position, d.position + 1, d.get_size(), str(d)]
 
                 else:
@@ -360,17 +360,7 @@ def create_motif_grammar(
             )
 
         def adjust_index(self, ss_indexes: List[list]) -> List[list]:
-            _ss_idx = list(itertools.chain(*ss_indexes))
-
-            adj = [
-                (
-                    ss - self.get_size()
-                    if isinstance(ss, int) and self.position[0] < ss
-                    else ss
-                )
-                for ss in _ss_idx
-            ]
-            return [adj[0:2], adj[2:4], adj[4:6]]
+            return ss_indexes
 
         def get_size(self) -> int:
             return self.position[1] - self.position[0]
@@ -417,16 +407,6 @@ def create_motif_grammar(
         def __str__(self):
             return f"MotifSubstitution[{self.position},{self.nucleotides[0]},{self.get_size()},{self.get_location()},{self.get_distance_to_cassette()}]"
 
-    #     grammar_nodes = []
-    # grammar_map = {'snv_weight': MotifSNV,
-    #                'deletion_weight': MotifDeletion,
-    #                'insertion_weight': MotifInsertion,
-    #                'motif_ablation_weight': MotifAblation,
-    #                'motif_substitution_weight': MotifSubstitution}
-
-    # for _arg, nodename in  grammar_map.items():
-    #     if kwargs[_arg] > 0:
-    #         grammar_nodes.append(weight(kwargs[_arg])(nodename))
     g = extract_grammar(
         [
             weight(kwargs["snv_weight"])(MotifSNV),
