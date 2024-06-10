@@ -182,10 +182,13 @@ def evo_alg_options_generate(fun):
     )(fun)
 
     fun = click.option(
-        "-pm",
+        "-pt",
         "--pangolin_tissue",
-        type=click.Choice(["heart", "liver", "brain", "testis"]),
-        help="Use tissue specific predictions to generate the dataset when '--model' is 'pangolin'. Default: average predictions across all tissues.",
+        cls=OptionEatAll,
+        type=tuple,
+        metavar=f"STRING + ... e.g. -pt heart liver ({'|'.join(['heart', 'liver', 'brain', 'testis'])}",
+        #type=click.Choice(["heart", "liver", "brain", "testis"]),
+        help="Use tissue specific predictions to generate the dataset when '--model' is 'pangolin'. Default: average predictions across all tissues. One or more tissues can be selected.",
     )(fun)
 
     fun = click.option(
@@ -468,7 +471,7 @@ def grammar_options(fun):
         #    ['exon_upstream', 'intron_upstream', 'exon_cassette', 'intron_downstream', 'exon_downstream'],
         #     case_sensitive=True,
         # ),
-        metavar=f"STRING + ... e.g. -sc exon_upstream exon_downstream. ({'|'.join(['exon_upstream', 'intron_upstream', 'exon_cassette', 'intron_downstream', 'exon_downstream'])}",
+        metavar=f"STRING + ... e.g. -sc exon_upstream exon_downstream ({'|'.join(['exon_upstream', 'intron_upstream', 'exon_cassette', 'intron_downstream', 'exon_downstream'])}",
         help="Region(s) within the exon triplet that should stay untouched in the "
         "evolutionary search.",
     )(fun)

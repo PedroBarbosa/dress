@@ -18,7 +18,13 @@ schema = {
                 "batch_size": {"type": "integer"},
                 "model_scoring_metric": {"type": "string"},
                 "pangolin_mode": {"type": "string"},
-                "pangolin_tissue": {"type": ["null", "string"]},
+                "pangolin_tissue": {
+                    "anyOf": [
+                        {"type": "null"},
+                        {"type": "string"},
+                        {"type": "array", "items": {"type": "string"}},
+                    ]
+                },
                 "fitness": {
                     "type": "object",
                     "properties": {
@@ -36,6 +42,7 @@ schema = {
                         "prune_at_generations": {
                             "anyOf": [
                                 {"type": "null"},
+                                {"type": "integer"},
                                 {"type": "array", "items": {"type": "integer"}},
                             ]
                         },
@@ -69,6 +76,7 @@ schema = {
                         "update_weights_at_generation": {
                             "anyOf": [
                                 {"type": "null"},
+                                {"type": "integer"},
                                 {"type": "array", "items": {"type": "integer"}},
                             ]
                         },
@@ -111,12 +119,13 @@ schema = {
                             "items": {"type": "integer"},
                         },
                         "donor_untouched_range": {
-                            "type": "array", 
+                            "type": "array",
                             "items": {"type": "integer"},
                         },
                         "untouched_regions": {
                             "anyOf": [
                                 {"type": "null"},
+                                {"type": "string"},
                                 {"type": "array", "items": {"type": "string"}},
                             ]
                         },

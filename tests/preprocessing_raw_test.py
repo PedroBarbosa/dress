@@ -11,18 +11,6 @@ from dress.datasetgeneration.preprocessing.gtf_cache import (
 )
 
 
-# abs_path = os.path.dirname(os.path.abspath(__file__))
-# raw_data = os.path.join(abs_path,"data/raw_data.tsv")
-# cache_dir = os.path.join(abs_path,"data")
-# genome_c =  os.path.join(abs_path, "data/chr22.fa.gz")
-# level = 2
-
-# with gzip.open(genome_c, "rb") as f_in:
-#     tmp_f = tempfile.NamedTemporaryFile()
-#     genome = tmp_f.name
-#     with open(genome, "wb") as f_out:
-#         shutil.copyfileobj(f_in, f_out)
-
 @pytest.fixture(scope="module")
 def setup_paths():
     abs_path = os.path.dirname(os.path.abspath(__file__))
@@ -40,12 +28,11 @@ def setup_paths():
 
     os.remove(genome)
 
+
 @pytest.fixture
 def initial_setup(setup_paths):
     raw_data, cache_dir, genome = setup_paths
-    df = tabular_file_to_genomics_df(
-        raw_data, col_index=0, is_0_based=False, header=0
-    )
+    df = tabular_file_to_genomics_df(raw_data, col_index=0, is_0_based=False, header=0)
     extracted, absent_in_gtf = extractGeneStructure(
         df.as_df(), cache_dir=cache_dir, genome=genome, level=2
     )
@@ -54,9 +41,12 @@ def initial_setup(setup_paths):
     assert absent_in_gtf.shape[0] == 0
     return extracted, absent_in_gtf
 
+
 @pytest.fixture
 def common_tests():
-    def assert_common_tests(seq_info, len_test, header_test, acceptors_test, donors_test):
+    def assert_common_tests(
+        seq_info, len_test, header_test, acceptors_test, donors_test
+    ):
         exon = seq_info.exon
         header = seq_info.header
         acceptor_idx = seq_info.acceptor_idx
@@ -85,8 +75,9 @@ def common_tests():
 
     return assert_common_tests
 
+
 class TestRawPreprocessing:
-    
+
     def test_full_sequence(self, setup_paths, initial_setup, common_tests):
         extracted, _ = initial_setup
         _, cache_dir, genome = setup_paths
@@ -215,8 +206,10 @@ class TestRawPreprocessing:
             seq = seq_info.seq
 
             # Case where just the upstream is trimmed
-            if exon == "chr22:31688156-31688227":      
-                for i, (acceptor, donor) in enumerate(zip(acceptor_idx.split(";"), donor_idx.split(";"))):
+            if exon == "chr22:31688156-31688227":
+                for i, (acceptor, donor) in enumerate(
+                    zip(acceptor_idx.split(";"), donor_idx.split(";"))
+                ):
                     if i == 0:
                         assert acceptor == "<NA>"
                         assert donor == "<NA>"
@@ -240,7 +233,7 @@ class TestRawPreprocessing:
             extend_borders=100,
             use_full_triplet=False,
             use_model_resolution=True,
-            model="spliceai"
+            model="spliceai",
         )
 
         len_test = {
@@ -307,6 +300,6 @@ class TestRawPreprocessing:
                         acceptor = int(acceptor)
                         assert seq[acceptor - 2 : acceptor] == "AG"
                         assert seq[acceptor - 8 : acceptor + 4] == "ATCCTTAGGTGT"
-                        
+
                         assert donor == "<NA>"
                         assert len(seq[acceptor:]) == 2648

@@ -151,7 +151,10 @@ class Pangolin(DeepLearningModel):
         batch_size: int = 64,
         scoring_metric: Literal["mean", "max", "min"] = "mean",
         mode: Literal["ss_usage", "ss_probability"] = "ss_usage",
-        tissue: Literal["heart", "liver", "brain", "testis"] = None
+        tissue: Union[
+            Literal["heart", "liver", "brain", "testis"],
+            List[Literal["heart", "liver", "brain", "testis"]],
+        ] = None,
     ):
         """Pangolin model class"""
         super().__init__(context, batch_size, scoring_metric)
@@ -161,12 +164,19 @@ class Pangolin(DeepLearningModel):
             self.model_nums = [0, 2, 4, 6]
 
         if tissue:
-            t_map_idx = {"heart": 0,
-                         "liver": 1,
-                         "brain": 2,
-                         "testis": 3}
-            self.model_nums = [self.model_nums[t_map_idx[tissue]]]
- 
+            t_map_idx = {"heart": 0, "liver": 1, "brain": 2, "testis": 3}
+
+            try:
+                if isinstance(tissue, (list, tuple)):
+                    self.model_nums = [self.model_nums[t_map_idx[t]] for t in tissue]
+                else:
+                    self.model_nums = [self.model_nums[t_map_idx[tissue]]]
+            except KeyError:
+                logger.error(
+                    "Invalid tissue type. Please choose from heart, liver, brain, testis"
+                )
+                exit(1)
+
     def run(
         self, seqs: List[str], original_seq: bool = False
     ) -> Union[Dict[int, List[np.ndarray]], List[np.ndarray]]:

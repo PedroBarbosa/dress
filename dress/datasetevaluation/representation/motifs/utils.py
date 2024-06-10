@@ -4,8 +4,6 @@ import os
 import re
 import pandas as pd
 from typing import Union
-import pandas as pd
-pd.set_option('future.no_silent_downcasting', True)
 
 from dress.datasetevaluation.representation.motifs.rbp_lists import RBP_SUBSETS
 import numpy as np
@@ -409,6 +407,7 @@ def _remove_self_contained(gr: pr.PyRanges, scan_method: str) -> pr.PyRanges:
                 columns=to_clean_cols
             )
             df.fillna({'Has_self_submotif': False}, inplace=True)
+            df = df.infer_objects()
 
         #######################
         # Other RBP contained #
@@ -431,6 +430,7 @@ def _remove_self_contained(gr: pr.PyRanges, scan_method: str) -> pr.PyRanges:
                 columns=to_clean_cols[:-1]
             )
             df.fillna({'Has_other_submotif': False}, inplace=True)
+            df = df.infer_objects()
             # logger.debug(".. {} hits flagged ..".format(contained_other_rbp.shape[0]))
 
     return pr.PyRanges(df)
