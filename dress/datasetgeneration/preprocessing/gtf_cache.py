@@ -121,7 +121,9 @@ def preprocessing(data: pr.PyRanges, **kwargs):
         df=extracted,
         fasta=genome,
         extend_borders=100,
-        use_full_seqs=kwargs["use_full_sequence"],
+        use_full_triplet=kwargs["use_full_triplet"],
+        use_model_resolution=kwargs["use_model_resolution"],
+        model = kwargs["model"]
     )
 
     if os.path.isdir(kwargs["outdir"]):
@@ -156,7 +158,10 @@ def write_output(
         Additional arguments in **kwargs:
             outdir (str): Output directory.
             outbasename (str): Output basename.
-            use_full_sequence (bool): Whether to use the full sequence when running the black box model.
+            use_full_triplet (bool): Whether to use the full exon triplet as input sequence 
+        when making model inferences.
+            use_model_resolution (bool): Whether to use the model resolution to determine input
+        sequence size when making model inferences.
     """
 
     to_write = {
@@ -193,8 +198,13 @@ def write_output(
                     ]
                 ],
             )
+    
+    out_flag = ''
+    if kwargs['use_full_triplet']:
+        out_flag = "_full_triplet"
+    elif kwargs['use_model_resolution']:
+        out_flag = "_model_res"
 
-    out_flag = "" if kwargs["use_full_sequence"] else "_trimmed_at_5000bp"
     if len(extracted_with_seqs) > 0:
         extracted_with_seqs[
             ["header", "acceptor_idx", "donor_idx", "tx_id", "exon"]

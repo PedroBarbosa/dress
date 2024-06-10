@@ -596,15 +596,29 @@ def grammar_options(fun):
     "config file is presented in 'dress/configs/generate.yaml' file.",
 )
 @click.option(
-    "-ufs",
-    "--use_full_sequence",
+    "-umr",
+    "--use_model_resolution",
     is_flag=True,
-    help="Whether to extract and predict the full sequence "
-    "from the start coordinate of the upstream exon to the end coordinate of the "
-    "downstream exon. Default: 'False': Use restricted sequence regions up to the resolution limit "
-    "of the selected model (e.g, for SpliceaAI, 5000bp on each side of the target exon). "
-    "Only used when input is 'bed' or 'tabular'. Use this option with caution, it can easily lead to "
-    "memory exhaustion if the sequence triplet size is too large.",
+    help="Whether to use the model resolution for extracting and predicting the full sequence. "
+    "If set, for example with '--model spliceai', the input sequence will include the "
+    "target exon plus 5000bp on either side. This ensures that both the acceptor and "
+    "donor positions are evaluated within the real genomic context, regardless of "
+    "whether surrounding exons fall within or outside the model resolution. "
+    "Default: 'False'. When not set (default), the surrounding context of the target exon is "
+    "dynamically extracted. If upstream/downstream exons are within the model resolution, "
+    "sequences are shorter and padded during inference. If they lie beyond the model "
+    "resolution, the sequence is trimmed to the model resolution. Cannot be used with '--use_full_triplet'.",
+)
+@click.option(
+    "-ufs",
+    "--use_full_triplet",
+    is_flag=True,
+    help=(
+        "Whether to extract and predict the full sequence from the start coordinate of the upstream "
+        "exon to the end coordinate of the downstream exon, regardless of the model resolution. "
+        "Default: 'False'. Use this option with caution, as it can easily lead to memory exhaustion "
+        "if the sequence triplet size is too large (e.g., large introns). Cannot be used with '--use_model_resolution'."
+    ),
 )
 @click.option(
     "-dr",

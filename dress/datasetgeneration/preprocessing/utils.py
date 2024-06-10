@@ -79,7 +79,7 @@ def process_ss_idx(
 
 
 def _get_flat_ss(
-    info: pd.Series, _level: str, start: int, end: int, use_full_seqs: bool
+    info: pd.Series, _level: str, start: int, end: int, use_full_tiplet: bool
 ):
     """
     Extracts flat splice site indexes for sequences
@@ -96,11 +96,11 @@ def _get_flat_ss(
     extensions.
         end (int): End coordinate of the flat sequence,
     after accounting for the extensions.
-        use_full_seqs (bool, optional): Whether `start` and `end`
+        use_full_tiplet (bool, optional): Whether `start` and `end`
     coordinates represent the true start and end of
     the sequence at a given surrounding level. If `False`,
     they represent start and end positions up to the
-    limit of deep learning model resolution.
+    limit of the model resolution.
 
     Returns:
         str: Flat acceptor indexes
@@ -109,7 +109,7 @@ def _get_flat_ss(
     _info = info.copy()
 
     # Check out of scope indexes
-    if use_full_seqs is False:
+    if use_full_tiplet is False:
         if _level != 0:
             cols = [
                 "Start_upstream" + _level,
@@ -205,7 +205,6 @@ def get_fasta_sequences(
         end_col (str, optional): Colname in `x` where end coordinate is. Defaults to "End".
 
     Returns:
-
         pd.Series: Additional column with the fasta sequence for the requested interval
     """
 
@@ -444,38 +443,47 @@ def generate_pipeline_input(
     df: pd.DataFrame,
     fasta: str,
     extend_borders: int = 0,
-    use_full_seqs: bool = True,
+    use_full_triplet: bool = False,
+    use_model_resolution: bool = True,
+    model: str = "spliceai",
 ):
     """
-    Generates SpliceAI input sequences from a dataframe
-    of target features with upstream and downstream
+    Generates model input sequences from a dataframe
+    of target exons with upstream and downstream
     intervals.
 
     It will generate the splice site indexes of the exons and
     introns surrounding the target exon of interest, for the
     associated transcript ID.
 
-    Additionally, two sets of fasta sequences can be written:
-    If `use_full_seqs` is `True`:
-        - Complete sequences ranging from the start of the highest
-    upstream level available (by default 2) up to the end of the
-    feature represented by the highest downstream level available.
-    Depending on intron sizes, these sequences may be very large.
-    If `extend_borders` is > 0, this number of nucleotides will
-    be additionally extracted on each side.
+    Sequence extraction can be done in three ways:
+    - `use_full_triplet` is `True`: The complete sequence
+    from the start of the exon upstream until the end of the
+    exon downstream is extracted, regardless of the size of
+    the resulting sequence. This can result in very large
+    sequences if introns are very long.
+    - `use_model_resolution` is `True`: The sequence is
+    extracted up to the maximum resolution of the model. For example,
+    for SpliceAI, the extracted sequence will be the cassette exon plus
+    5000bp upstream of the acceptor and 5000bp downstream of the donor.
+    - `use_model_resolution` is `False` and `use_full_triplet` is `False`:
+    If neither of the above is set (default), the sequence will be extracted
+    such that: if the full exon triplet is smaller than the model resolution,
+    the full exon triplet is extracted, and then at inference time the sequence
+    is padded to the model resolution. If the exon triplet is larger than the
+    model resolution, the sequence is trimmed at the model resolution, which may not
+    include upstream and/or downstream exons.
 
-    If `use_full_seqs` is `False`:
-    - Sequences surrounding the target exon up to a maximum size
-    of 5000 nucleotides on each side will be extracted. This is
-    the maximum resolution sequence-based models can get to
-    see long-range effects on splice site definition.
-    When this is set, sequences may be much shorter than the expected
-    size, specially if dealing with introns that are >50kb long. If `False`,
-    inference time for these long sequences may be quite high.
-
-    On the other side, if the length of the final sequence is small
-    (let's say less than 10000 + average exon size), the input will
-    be padded so that models can accept the input.
+    If `extend_borders` > 0, the sequence will be extended on both sides.
+    This is useful for cases where the acceptor of the uptream exon 
+    or the donor of the downstream exon represent the start or end of the 
+    sequence, respectively. Because the splice site score of such positions
+    may not be properly captured (because the full context is not present),
+    extending the sequence can help to provide a more realistic prediction 
+    as if those positions were in the middle of the sequence. This extension
+    is applied when `use_full_triplet` is `True` or in the default setting
+    (`use_model_resolution=False` and `use_full_triplet=False`) when the
+    sequence is shorter than the model resolution.
 
     Returns:
         Tuples with the following information:
@@ -483,6 +491,10 @@ def generate_pipeline_input(
             - If available, a list with dPSI information for the given exons
             - A dataframe with the exons excluded due to having NAs, if level == 2
     """
+
+    assert any(
+        x is False for x in [use_full_triplet, use_model_resolution]
+    ), "Can't set both `use_full_triplet` and `use_model_resolution` to `True`."
 
     if list(df.filter(regex="stream")):
         # Extract level so that we know the
@@ -512,7 +524,7 @@ def generate_pipeline_input(
 
     for _, seq_record in df.iterrows():
 
-        if use_full_seqs:
+        if use_full_triplet:
             if seq_record.Strand == "+":
                 start = "Start_upstream" + _level if level != 0 else "Start"
                 end = "End_downstream" + _level if level != 0 else "End"
@@ -549,7 +561,7 @@ def generate_pipeline_input(
                 _level,
                 start=seq_record[start] - extend_borders,
                 end=seq_record[end] + extend_borders,
-                use_full_seqs=use_full_seqs,
+                use_full_tiplet=use_full_triplet,
             )
 
             out.append(
@@ -565,101 +577,14 @@ def generate_pipeline_input(
             )
 
         else:
-            # Get sequences trimmed at max SpliceAI resolution
-            def _get_slack(
-                seq_record: pd.Series,
-                region: Literal["upstream", "downstream"],
-                _level: str,
-                extend_borders: int,
-            ):
-                """
-                Returns the number of base pairs to extend
-                coordinates surrounding the central
-                exon, for cases where the upstream or downstream (`region`)
-                exon lie within the boundaries of the model resolution
-                (e.g, SpliceAI = 5000bp), so that the sequence to be run contains
-                only the triplet exon + `extend_borders` region.
-                It is the same procedure as when `use_full_sequence`
-                for cases where the upstream or downstream exon is less than
-                5000bp away from the central exon.
-
-                Args:
-                    seq_record (pd.Series): A row from the input dataframe
-                    region (Literal): Either 'upstream' or 'downstream'
-                    _level (str): The level to be considered
-                    extend_borders (int): The number of base pairs to extend the coordinates,
-                regardless of the region
-
-                Returns:
-                    int: The number of base pairs to extend the coordinates
-                """
-                if region == "upstream":
-
-                    if seq_record.Strand == "+":
-                        if (
-                            seq_record.Start
-                            - seq_record["End_upstream{}".format(_level)]
-                            >= 5000
-                        ):
-
-                            return 5000
-
-                        else:
-                            return (
-                                seq_record.Start
-                                - seq_record["Start_upstream{}".format(_level)]
-                                + extend_borders
-                            )
-
-                    else:
-                        if (
-                            seq_record["Start_upstream{}".format(_level)]
-                            - seq_record.End
-                            >= 5000
-                        ):
-
-                            return 5000
-                        else:
-                            return (
-                                seq_record["End_upstream{}".format(_level)]
-                                - seq_record.End
-                                + extend_borders
-                            )
-
-                else:
-                    if seq_record.Strand == "+":
-                        if (
-                            seq_record["Start_downstream{}".format(_level)]
-                            - seq_record.End
-                            >= 5000
-                        ):
-                            return 5000
-                        else:
-                            return (
-                                seq_record["End_downstream{}".format(_level)]
-                                - seq_record.End
-                                + extend_borders
-                            )
-                    else:
-
-                        if (
-                            seq_record.Start
-                            - seq_record["End_downstream{}".format(_level)]
-                            >= 5000
-                        ):
-                            return 5000
-                        else:
-                            return (
-                                seq_record.Start
-                                - seq_record["Start_downstream{}".format(_level)]
-                                + extend_borders
-                            )
 
             slack_upst = _get_slack(
                 seq_record,
                 region="upstream",
                 _level=_level,
                 extend_borders=extend_borders,
+                use_model_resolution=use_model_resolution,
+                model=model,
             )
 
             slack_downst = _get_slack(
@@ -667,6 +592,8 @@ def generate_pipeline_input(
                 region="downstream",
                 _level=_level,
                 extend_borders=extend_borders,
+                use_model_resolution=use_model_resolution,
+                model=model,
             )
 
             seq = get_fasta_sequences(
@@ -702,7 +629,7 @@ def generate_pipeline_input(
                 _level,
                 start=min(left, right),
                 end=max(left, right),
-                use_full_seqs=use_full_seqs,
+                use_full_tiplet=use_full_triplet,
             )
 
             out.append(
@@ -743,3 +670,85 @@ def generate_pipeline_input(
         ).drop_duplicates()
 
     return out, out_dpsi, _with_NAs
+
+def _get_slack(
+    seq_record: pd.Series,
+    region: Literal["upstream", "downstream"],
+    _level: str,
+    extend_borders: int,
+    use_model_resolution: bool,
+    model: str
+):
+    """
+    Returns the number of base pairs to extend
+    coordinates surrounding the central exon.
+     
+    If `use_model_resolution` is `True` returns the number of 
+    base pairs corresponding to the model resolution
+    (e.g., 5000bp on each side for SpliceAI). If `False`,
+    returns the number of base pairs up to location of the
+    upstream or downstream exons, if their distance is lower
+    than the model resolution. If the distance is higher, 
+    returns the distance to the model resolution.
+
+    Args:
+        seq_record (pd.Series): A row from the input dataframe
+        region (Literal): Either 'upstream' or 'downstream'
+        _level (str): The level to be considered
+        extend_borders (int): The number of base pairs to extend the coordinates,
+    regardless of the region
+        use_model_resolution (bool): Whether to use the model resolution
+        model (str): The model to be used
+
+    Returns:
+        int: The number of base pairs to extend the coordinates
+    """
+    models = {"spliceai": 5000, "pangolin": 5000}
+    model_res = models[model]
+    if use_model_resolution:
+        return model_res
+    
+    if region == "upstream":
+
+        if seq_record.Strand == "+":
+            if seq_record.Start - seq_record["End_upstream{}".format(_level)] >= model_res:
+                return model_res
+
+            else:
+                return (
+                    seq_record.Start
+                    - seq_record["Start_upstream{}".format(_level)]
+                    + extend_borders
+                )
+
+        else:
+            if seq_record["Start_upstream{}".format(_level)] - seq_record.End >= model_res:
+
+                return model_res
+            else:
+                return (
+                    seq_record["End_upstream{}".format(_level)]
+                    - seq_record.End
+                    + extend_borders
+                )
+
+    else:
+        if seq_record.Strand == "+":
+            if seq_record["Start_downstream{}".format(_level)] - seq_record.End >= model_res:
+                return model_res
+            else:
+                return (
+                    seq_record["End_downstream{}".format(_level)]
+                    - seq_record.End
+                    + extend_borders
+                )
+        else:
+
+            if seq_record.Start - seq_record["End_downstream{}".format(_level)] >= model_res:
+                return model_res
+            else:
+                return (
+                    seq_record.Start
+                    - seq_record["Start_downstream{}".format(_level)]
+                    + extend_borders
+                )

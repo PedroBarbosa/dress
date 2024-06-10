@@ -15,7 +15,8 @@ generate:
   preprocessing:
     cache_dir: data/cache/
     genome: data/cache/Homo_sapiens.GRCh38.dna.primary_assembly.fa
-    use_full_sequence: false
+    use_model_resolution: false
+    use_full_triplet: false
   fitness:
     minimize_fitness: false
     fitness_function: bin_filler

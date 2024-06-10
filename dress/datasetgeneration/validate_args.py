@@ -15,6 +15,8 @@ GENERATE_GROUP_OPTIONS = {
                 "--cache_dir",
                 "--genome",
                 "--config",
+                "--use_model_resolution",
+                "--use_full_triplet"
             ],
         },
         {
@@ -89,7 +91,6 @@ GENERATE_GROUP_OPTIONS = {
         {
             "name": "Other options",
             "options": [
-                "--use_full_sequence",
                 "--dry_run",
                 "--disable_gpu",
                 "--verbosity",
