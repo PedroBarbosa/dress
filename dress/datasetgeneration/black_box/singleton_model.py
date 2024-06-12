@@ -20,13 +20,13 @@ def batch_function_pangolin(model_nums: list) -> Callable[[Any], Any]:
 
     models = []
     for i in model_nums:
-        for j in range(1, 6):
+        for j in range(1, 4):
             model = Pangolin(L, W, AR)
             if torch.cuda.is_available():
                 model.cuda()
-                weights = torch.load(resource_filename("pangolin","models/final.%s.%s.3" % (j, i)))
+                weights = torch.load(resource_filename("pangolin","models/final.%s.%s.3.v2" % (j, i)))
             else:
-                weights = torch.load(resource_filename("pangolin","models/final.%s.%s.3" % (j, i)),
+                weights = torch.load(resource_filename("pangolin","models/final.%s.%s.3.v2" % (j, i)),
                                  map_location=torch.device('cpu'))
             model.load_state_dict(weights)
             model.eval()
@@ -39,8 +39,8 @@ def batch_function_pangolin(model_nums: list) -> Callable[[Any], Any]:
         for j, model_num in enumerate(model_nums):
             score = []
             
-            # Average across 4 models
-            for model in models[5*j:5*j+5]:
+            # Average across 3 models
+            for model in models[3*j:3*j+3]:
                 with torch.no_grad():
                     score.append(model(batch)[:, INDEX_MAP[model_num], :].cpu().numpy())
                     
