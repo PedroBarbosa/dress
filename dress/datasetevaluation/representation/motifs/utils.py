@@ -406,8 +406,7 @@ def _remove_self_contained(gr: pr.PyRanges, scan_method: str) -> pr.PyRanges:
             df = pd.merge(df, contained_same_rbp, how="left", on=to_drop_cols).drop(
                 columns=to_clean_cols
             )
-            df.fillna({'Has_self_submotif': False}, inplace=True)
-            df = df.infer_objects()
+            df['Has_self_submotif'] = df.Has_self_submotif.fillna(False).infer_objects(copy=False)
 
         #######################
         # Other RBP contained #
@@ -429,8 +428,7 @@ def _remove_self_contained(gr: pr.PyRanges, scan_method: str) -> pr.PyRanges:
             df = pd.merge(df, contained_other_rbp, how="left", on=to_drop_cols).drop(
                 columns=to_clean_cols[:-1]
             )
-            df.fillna({'Has_other_submotif': False}, inplace=True)
-            df = df.infer_objects()
+            df['Has_other_submotif'] = df.Has_other_submotif.fillna(False).infer_objects(copy=False)
             # logger.debug(".. {} hits flagged ..".format(contained_other_rbp.shape[0]))
 
     return pr.PyRanges(df)

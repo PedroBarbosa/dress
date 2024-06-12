@@ -12,7 +12,7 @@ import torch  # noqa: E402
 from keras.utils import pad_sequences  # noqa: E402
 from spliceai.utils import one_hot_encode  # noqa: E402
 from .singleton_model import (  # noqa: E402
-    batch_function_spliceAI,  # noqa: E402
+    batch_function_spliceai,  # noqa: E402
     batch_function_pangolin,  # noqa: E402
 )  # noqa: E402
 
@@ -78,6 +78,7 @@ class SpliceAI(DeepLearningModel):
     ):
         """SpliceAI model class"""
         super().__init__(context, batch_size, scoring_metric)
+        self._init_model()
 
     def run(
         self, seqs: List[str], original_seq: bool = False
@@ -95,14 +96,11 @@ class SpliceAI(DeepLearningModel):
         preds = []
         batches, seq_lengths = self.data_preparation(seqs, "SpliceAI")
         max_len = max(seq_lengths)
-        global predict_batch_spliceai
-        if predict_batch_spliceai is None:
-            predict_batch_spliceai = batch_function_spliceAI()
 
         for _i, batch in enumerate(tqdm(batches)):
             n_seqs = self.batch_size * _i
             batch_tf = tf.convert_to_tensor(batch, dtype=tf.int32)
-            raw_preds = predict_batch_spliceai(batch_tf)
+            raw_preds = self.predict_batch_spliceai(batch_tf)
             batch_preds = [
                 x.numpy()[max_len - seq_lengths[i + n_seqs] :]
                 for i, x in enumerate(raw_preds)
@@ -143,6 +141,9 @@ class SpliceAI(DeepLearningModel):
 
         return out
 
+    def _init_model(self):
+        self.predict_batch_spliceai = batch_function_spliceai()
+
 
 class Pangolin(DeepLearningModel):
     def __init__(
@@ -162,6 +163,11 @@ class Pangolin(DeepLearningModel):
             self.model_nums = [1, 3, 5, 7]
         elif mode == "ss_probability":
             self.model_nums = [0, 2, 4, 6]
+        else:
+            logger.error(
+                "Invalid Pangolin mode. Please choose from ss_usage, ss_probability"
+            )
+            exit(1)
 
         if tissue:
             t_map_idx = {"heart": 0, "liver": 1, "brain": 2, "testis": 3}
@@ -176,6 +182,7 @@ class Pangolin(DeepLearningModel):
                     "Invalid tissue type. Please choose from heart, liver, brain, testis"
                 )
                 exit(1)
+        self._init_model()
 
     def run(
         self, seqs: List[str], original_seq: bool = False
@@ -192,18 +199,15 @@ class Pangolin(DeepLearningModel):
         preds = []
         batches, seq_lengths = self.data_preparation(seqs, "Pangolin")
         max_len = max(seq_lengths)
-        global predict_batch_pangolin
-        if predict_batch_pangolin is None:
-            predict_batch_pangolin = batch_function_pangolin(self.model_nums)
 
-        for _i, seq in enumerate(tqdm(batches)):
+        for _i, seqs in enumerate(tqdm(batches)):
             n_seqs = self.batch_size * _i
-            seq = seq.transpose(0, 2, 1)
-            seq = torch.from_numpy(seq).float()
+            seqs = seqs.transpose(0, 2, 1)
+            batch = torch.from_numpy(seqs).float()
             if torch.cuda.is_available():
-                seq = seq.to(torch.device("cuda"))
+                batch = batch.to(torch.device("cuda"))
 
-            raw_preds = predict_batch_pangolin(seq)
+            raw_preds = self.predict_batch_pangolin(batch)
             batch_preds = [
                 x[max_len - seq_lengths[i + n_seqs] :] for i, x in enumerate(raw_preds)
             ]
@@ -242,3 +246,6 @@ class Pangolin(DeepLearningModel):
 
             out[seq_id] = self._apply_metric([acceptor, donor])
         return out
+
+    def _init_model(self):
+        self.predict_batch_pangolin = batch_function_pangolin(self.model_nums)
