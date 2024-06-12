@@ -56,73 +56,73 @@ def apply_diff_to_individuals(pop: list, rs: RandomSource):
     )
 
 
-# class TestPangolin:
-#     SCORE_BY_MEAN = 0.32
-#     SCORE_BY_MEAN_SS_PROB = 0.2598
-#     SCORE_BY_MAX = 0.6394
-#     SCORE_BY_MIN = 0.0006
+class TestPangolin:
+    SCORE_BY_MEAN = 0.32
+    SCORE_BY_MEAN_SS_PROB = 0.2598
+    SCORE_BY_MAX = 0.6394
+    SCORE_BY_MIN = 0.0006
 
-#     SCORE_HEART = 0.3566
-#     SCORE_LIVER = 0.3132
-#     SCORE_BRAIN = 0.3318
-#     SCORE_TESTIS = 0.2786
-#     SCORE_HEART_TESTIS = 0.3176
+    SCORE_HEART = 0.3566
+    SCORE_LIVER = 0.3132
+    SCORE_BRAIN = 0.3318
+    SCORE_TESTIS = 0.2786
+    SCORE_HEART_TESTIS = 0.3176
 
-#     @pytest.mark.parametrize(
-#         "scoring_metric, mode, expected_result",
-#         [
-#             ("mean", "ss_usage", SCORE_BY_MEAN),
-#             ("mean", "ss_probability", SCORE_BY_MEAN_SS_PROB),
-#             ("max", "ss_usage", SCORE_BY_MAX),
-#             ("min", "ss_usage", SCORE_BY_MIN),
-#         ],
-#     )
-#     def test_original_seq_pangolin(self, scoring_metric, mode, expected_result):
-#         model = Pangolin(scoring_metric=scoring_metric, mode=mode)
-#         raw_pred = model.run([SEQ], original_seq=True)
-#         score = model.get_exon_score({SEQ_ID: raw_pred}, ss_idx={SEQ_ID: SS_IDX})
-#         assert_allclose(score[SEQ_ID], expected_result, atol=1e-04)
-#         model = None
+    @pytest.mark.parametrize(
+        "scoring_metric, mode, expected_result",
+        [
+            ("mean", "ss_usage", SCORE_BY_MEAN),
+            ("mean", "ss_probability", SCORE_BY_MEAN_SS_PROB),
+            ("max", "ss_usage", SCORE_BY_MAX),
+            ("min", "ss_usage", SCORE_BY_MIN),
+        ],
+    )
+    def test_original_seq_pangolin(self, scoring_metric, mode, expected_result):
+        model = Pangolin(scoring_metric=scoring_metric, mode=mode)
+        raw_pred = model.run([SEQ], original_seq=True)
+        score = model.get_exon_score({SEQ_ID: raw_pred}, ss_idx={SEQ_ID: SS_IDX})
+        assert_allclose(score[SEQ_ID], expected_result, atol=1e-04)
+        model = None
 
-#     @pytest.mark.parametrize(
-#         "tissue, expected_result",
-#         [
-#             ("heart", SCORE_HEART),
-#             ("liver", SCORE_LIVER),
-#             ("brain", SCORE_BRAIN),
-#             ("testis", SCORE_TESTIS),
-#             (["heart", "testis"], SCORE_HEART_TESTIS),
-#         ],
-#     )
-#     def test_tissue_specific_pangolin(self, tissue, expected_result):
-#         model = Pangolin(tissue=tissue)
-#         raw_pred = model.run([SEQ], original_seq=True)
-#         score = model.get_exon_score({SEQ_ID: raw_pred}, ss_idx={SEQ_ID: SS_IDX})
-#         assert_allclose(score[SEQ_ID], expected_result, atol=1e-04)
-#         model = None
+    @pytest.mark.parametrize(
+        "tissue, expected_result",
+        [
+            ("heart", SCORE_HEART),
+            ("liver", SCORE_LIVER),
+            ("brain", SCORE_BRAIN),
+            ("testis", SCORE_TESTIS),
+            (["heart", "testis"], SCORE_HEART_TESTIS),
+        ],
+    )
+    def test_tissue_specific_pangolin(self, tissue, expected_result):
+        model = Pangolin(tissue=tissue)
+        raw_pred = model.run([SEQ], original_seq=True)
+        score = model.get_exon_score({SEQ_ID: raw_pred}, ss_idx={SEQ_ID: SS_IDX})
+        assert_allclose(score[SEQ_ID], expected_result, atol=1e-04)
+        model = None
 
-#     def test_generated_seqs_pangolin(self):
-#         model = Pangolin(scoring_metric="mean", mode="ss_usage")
-#         rs = RandomSource(0)
-#         pop = create_population(rs)
-#         seqs, new_ss_positions = map(list, apply_diff_to_individuals(pop, rs))
+    def test_generated_seqs_pangolin(self):
+        model = Pangolin(scoring_metric="mean", mode="ss_usage")
+        rs = RandomSource(0)
+        pop = create_population(rs)
+        seqs, new_ss_positions = map(list, apply_diff_to_individuals(pop, rs))
 
-#         raw_preds = model.run(seqs, original_seq=False)
+        raw_preds = model.run(seqs, original_seq=False)
 
-#         new_scores = model.get_exon_score(raw_preds, ss_idx=new_ss_positions)
-#         black_box_preds = [*new_scores.values()]
+        new_scores = model.get_exon_score(raw_preds, ss_idx=new_ss_positions)
+        black_box_preds = [*new_scores.values()]
 
-#         assert len(raw_preds) == 100
-#         assert_allclose(
-#             sorted(black_box_preds, reverse=True)[0:5],
-#             [0.3916, 0.3665, 0.3603, 0.3555, 0.3546],
-#             atol=1e-04,
-#         )
-#         assert_allclose(
-#             sorted(black_box_preds)[0:5],
-#             [0.0916, 0.2219, 0.2275, 0.2345, 0.24],
-#             atol=1e-04,
-#         )
+        assert len(raw_preds) == 100
+        assert_allclose(
+            sorted(black_box_preds, reverse=True)[0:5],
+            [0.3916, 0.3665, 0.3603, 0.3555, 0.3546],
+            atol=1e-04,
+        )
+        assert_allclose(
+            sorted(black_box_preds)[0:5],
+            [0.0916, 0.2219, 0.2275, 0.2345, 0.24],
+            atol=1e-04,
+        )
 
 
 class TestSpliceAI:
