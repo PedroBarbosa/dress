@@ -599,28 +599,26 @@ def grammar_options(fun):
     "config file is presented in 'dress/configs/generate.yaml' file.",
 )
 @click.option(
-    "-umr",
-    "--use_model_resolution",
+    "-esd",
+    "--extract_dynamically",
     is_flag=True,
-    help="Whether to use the model resolution for extracting and predicting the full sequence. "
-    "If set, for example with '--model spliceai', the input sequence will include the "
-    "target exon plus 5000bp on either side. This ensures that both the acceptor and "
-    "donor positions are evaluated within the real genomic context, regardless of "
-    "whether surrounding exons fall within or outside the model resolution. "
-    "Default: 'False'. When not set (default), the surrounding context of the target exon is "
-    "dynamically extracted. If upstream/downstream exons are within the model resolution, "
-    "sequences are shorter and padded during inference. If they lie beyond the model "
-    "resolution, the sequence is trimmed to the model resolution. Cannot be used with '--use_full_triplet'.",
+    help="Extract sequences dynamically based on the exon triplet size and the model resolution. "
+         "If upstream/downstream exons are within the model resolution, sequences will be shorter and padded "
+         "during inference. If they lie beyond the model resolution, sequences are trimmed to the model resolution. "
+         "Default: use the model resolution for extracting surrounding context and making inferences. For example, "
+         "with '--model spliceai', the default setting will include the target exon plus 5000bp on either side. This ensures that both the acceptor and donor positions are evaluated within the real genomic context, regardless "
+         "of whether surrounding exons fall within or outside the 5000bp."
 )
 @click.option(
-    "-ufs",
-    "--use_full_triplet",
+    "-efs",
+    "--extract_full_triplet",
     is_flag=True,
     help=(
-        "Whether to extract and predict the full sequence from the start coordinate of the upstream "
+        "Extract and predict the full sequences from the start coordinate of the upstream "
         "exon to the end coordinate of the downstream exon, regardless of the model resolution. "
         "Default: 'False'. Use this option with caution, as it can easily lead to memory exhaustion "
-        "if the sequence triplet size is too large (e.g., large introns). Cannot be used with '--use_model_resolution'."
+        "if the sequence triplet size is too large (e.g., large introns). Default: use the model resolution, "
+        "as described in '--extract_dynamically'."
     ),
 )
 @click.option(

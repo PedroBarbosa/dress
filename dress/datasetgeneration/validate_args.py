@@ -15,8 +15,8 @@ GENERATE_GROUP_OPTIONS = {
                 "--cache_dir",
                 "--genome",
                 "--config",
-                "--use_model_resolution",
-                "--use_full_triplet"
+                "--extract_dynamically",
+                "--extract_full_triplet"
             ],
         },
         {

@@ -7,8 +7,8 @@ schema = {
             "properties": {
                 "dry_run": {"type": "boolean"},
                 "disable_gpu": {"type": "boolean"},
-                "use_full_triplet": {"type": "boolean"},
-                "use_model_resolution": {"type": "boolean"},
+                "extract_full_triplet": {"type": "boolean"},
+                "extract_dynamically": {"type": "boolean"},
                 "verbosity": {"type": "integer"},
                 "shuffle_input": {"type": ["null", "string"]},
                 "outdir": {"type": "string"},

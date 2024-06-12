@@ -86,8 +86,8 @@ class TestRawPreprocessing:
             df=extracted,
             fasta=open_fasta(genome, cache_dir),
             extend_borders=100,
-            use_full_triplet=True,
-            use_model_resolution=False,
+            extract_full_triplet=True,
+            extract_dynamically=False,
         )
 
         assert na_exons.shape[0] == 0
@@ -148,8 +148,8 @@ class TestRawPreprocessing:
             df=extracted,
             fasta=open_fasta(genome, cache_dir),
             extend_borders=100,
-            use_full_triplet=False,
-            use_model_resolution=False,
+            extract_full_triplet=False,
+            extract_dynamically=True,
         )
 
         len_test = {
@@ -231,8 +231,8 @@ class TestRawPreprocessing:
             df=extracted,
             fasta=open_fasta(genome, cache_dir),
             extend_borders=100,
-            use_full_triplet=False,
-            use_model_resolution=True,
+            extract_full_triplet=False,
+            extract_dynamically=False,
             model="spliceai",
         )
 

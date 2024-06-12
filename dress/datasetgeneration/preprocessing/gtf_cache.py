@@ -121,8 +121,8 @@ def preprocessing(data: pr.PyRanges, **kwargs):
         df=extracted,
         fasta=genome,
         extend_borders=100,
-        use_full_triplet=kwargs["use_full_triplet"],
-        use_model_resolution=kwargs["use_model_resolution"],
+        extract_full_triplet=kwargs["extract_full_triplet"],
+        extract_dynamically=kwargs["extract_dynamically"],
         model = kwargs["model"]
     )
 
@@ -158,10 +158,10 @@ def write_output(
         Additional arguments in **kwargs:
             outdir (str): Output directory.
             outbasename (str): Output basename.
-            use_full_triplet (bool): Whether to use the full exon triplet as input sequence 
+            extract_full_triplet (bool): Whether to use the full exon triplet as input sequence 
         when making model inferences.
-            use_model_resolution (bool): Whether to use the model resolution to determine input
-        sequence size when making model inferences.
+            extract_dynamically (bool): Whether to extract input sequence dynamically based on
+        triplet length and model resolution.
     """
 
     to_write = {
@@ -200,10 +200,10 @@ def write_output(
             )
     
     out_flag = ''
-    if kwargs['use_full_triplet']:
+    if kwargs['extract_full_triplet']:
         out_flag = "_full_triplet"
-    elif kwargs['use_model_resolution']:
-        out_flag = "_model_res"
+    elif kwargs['extract_dynamically']:
+        out_flag = "_dynamically"
 
     if len(extracted_with_seqs) > 0:
         extracted_with_seqs[
