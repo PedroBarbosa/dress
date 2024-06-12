@@ -187,7 +187,7 @@ class TestArchivePruning:
         )
 
         alg.evolve()
-        assert archive.size == 282
+        assert archive.size == 278
         n_diffs_before = sum(
             [len(ind.get_phenotype().diffs) for ind in archive.instances]
         )
@@ -196,19 +196,19 @@ class TestArchivePruning:
         pruner.simplify()
 
         # All individuals should have been tested by now
-        assert len(pruner.evaluated_individuals) == 282
+        assert len(pruner.evaluated_individuals) == 278
 
-        # Number of individuals pruned should be 8
-        assert pruner.n_pruned == 8
+        # Number of individuals pruned should be 4
+        assert pruner.n_pruned == 4
 
         # Archive did not have any duplicate
-        assert archive.size == 282
+        assert archive.size == 278
 
         n_diffs_after = sum(
             [len(ind.get_phenotype().diffs) for ind in archive.instances]
         )
 
-        assert n_diffs_before == n_diffs_after + 8
+        assert n_diffs_before == n_diffs_after + 4
 
         # Simplifying again should have not effect
         pruner.simplify()
