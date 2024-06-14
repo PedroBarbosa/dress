@@ -11,7 +11,7 @@ from dress.datasetgeneration.grammars.utils import (
 )
 from .grammars.random_perturbation_grammar import create_random_grammar
 from .config_evolution import configureEvolution
-from .black_box.model import SpliceAI, Pangolin
+from .black_box.model import DeepLearningModel, SpliceAI, Pangolin
 from geneticengine.core.random.sources import RandomSource
 
 
@@ -29,37 +29,43 @@ def get_score_of_input_sequence(input_seq: dict, **kwargs) -> dict:
 
     Returns:
         dict: Updated dictionary with the model score
+        DeepLearningModel: Model object
     """
     seq_id = input_seq["seq_id"]
     seq = input_seq["seq"]
     ss_idx = input_seq["ss_idx"]
     dry_run = input_seq["dry_run"]
-
     model = kwargs["model"]
-    metric = kwargs["model_scoring_metric"]
+
     if dry_run:
         input_seq["score"] = 0.5
-
-    elif model == "spliceai":
-        model = SpliceAI(scoring_metric=metric)
-
-    elif model == "pangolin":
-        model = Pangolin(
-            scoring_metric=metric,
-            mode=kwargs["pangolin_mode"],
-            tissue=kwargs["pangolin_tissue"],
-        )
-
     else:
-        raise ValueError(f"Model {model} not supported")
+        metric = kwargs["model_scoring_metric"]
+        batch_size = kwargs["batch_size"]
+        if model == "spliceai":
+            model = SpliceAI(batch_size=batch_size,
+                            scoring_metric=metric)
 
-    raw_pred = model.run([seq], original_seq=True)
-    score = model.get_exon_score({seq_id: raw_pred}, ss_idx={seq_id: ss_idx})
+        elif model == "pangolin":
+            model = Pangolin(
+                scoring_metric=metric,
+                batch_size=batch_size,
+                mode=kwargs["pangolin_mode"],
+                tissue=kwargs["pangolin_tissue"],
+            )
+        elif isinstance(model, DeepLearningModel):
+            pass
 
-    input_seq["score"] = score[seq_id]
-    del model
+        else:
+            raise ValueError(f"Model {model} not supported")
+
+        raw_pred = model.run([seq], original_seq=True)
+        score = model.get_exon_score({seq_id: raw_pred}, ss_idx={seq_id: ss_idx})
+
+        input_seq["score"] = score[seq_id]
+
     kwargs["logger"].info(f"Score: {input_seq['score']:.4f}")
-    return input_seq
+    return input_seq, model
 
 
 def _shuffle(input_seq, excluded_ranges, shuffle_func, **kwargs) -> str:
@@ -113,7 +119,7 @@ def shuffle_input_sequence(input_seq: dict, **kwargs) -> dict:
         )
 
         input_seq["seq"] = shuffled_seq
-        input_seq = get_score_of_input_sequence(input_seq, **kwargs)
+        input_seq, _ = get_score_of_input_sequence(input_seq, **kwargs)
 
     return input_seq, excluded_r, rs
 

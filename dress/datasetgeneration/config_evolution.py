@@ -114,7 +114,9 @@ def correct_phenotypes(
                     genotype_to_phenotype=rep.genotype_to_phenotype,  # type: ignore
                 )
                 is_valid = (
-                    True if _is_valid_individual(_ind, original_seq, excluded_regions, rs) else False
+                    True
+                    if _is_valid_individual(_ind, original_seq, excluded_regions, rs)
+                    else False
                 )
 
             new_pop.append(_ind)  # type: ignore
@@ -312,20 +314,25 @@ def configureEvolution(
     )
 
     # Deep learning model
-    scoring_metric = kwargs["model_scoring_metric"]
-    if kwargs["model"] == "spliceai":
-        oracle_model = SpliceAI(
-            batch_size=kwargs["batch_size"], scoring_metric=scoring_metric
-        )
-    elif kwargs["model"] == "pangolin":
-        oracle_model = Pangolin(
-            batch_size=kwargs["batch_size"],
-            scoring_metric=scoring_metric,
-            mode=kwargs["pangolin_mode"],
-            tissue=kwargs["pangolin_tissue"],
-        )
+    if isinstance(kwargs["model"], (SpliceAI, Pangolin)):
+        oracle_model = kwargs["model"]
+        kwargs["model"] = oracle_model.__class__.__name__.lower()
+
     else:
-        raise ValueError(f"Model {kwargs['model']} not recognized")
+        scoring_metric = kwargs["model_scoring_metric"]
+        if kwargs["model"] == "spliceai":
+            oracle_model = SpliceAI(
+                batch_size=kwargs["batch_size"], scoring_metric=scoring_metric
+            )
+        elif kwargs["model"] == "pangolin":
+            oracle_model = Pangolin(
+                batch_size=kwargs["batch_size"],
+                scoring_metric=scoring_metric,
+                mode=kwargs["pangolin_mode"],
+                tissue=kwargs["pangolin_tissue"],
+            )
+        else:
+            raise ValueError(f"Model {kwargs['model']} not recognized")
 
     archive = Archive(
         target_size=kwargs["archive_size"],

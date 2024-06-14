@@ -54,8 +54,11 @@ def _get_forbidden_zones(
     donor_range = list(map(int, donor_untouched_range))
 
     model_resolutions = {"spliceai": 5000, "pangolin": 5000}
+    try:
+        resolution = model_resolutions[model]
+    except KeyError:
+        resolution = model.context
 
-    resolution = model_resolutions[model]
     out = []
 
     # Forbid to explore Intron_downstrem_2 or Intron_upstream_2
