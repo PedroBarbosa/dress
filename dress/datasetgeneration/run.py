@@ -719,16 +719,21 @@ def generate(**args):
             "dry_run": args["dry_run"],
         }
 
-        outoriginalfn = f"{args['outdir']}/{outbasename}_original_seq.csv"
+        if args["shuffle_input"]:
+            outoriginalfn = f"{args['outdir']}/{outbasename}_seed_{args['seed']}_original_seq.csv"
+        else:
+            outoriginalfn = f"{args['outdir']}/{outbasename}_original_seq.csv"
+
         outdatasetfn = (
             f"{args['outdir']}/{outbasename}_seed_{args['seed']}_dataset.csv.gz"
         )
         args["logger"].info("Calculating original score")
-        _input = get_score_of_input_sequence(_input, **args)
+        _input, model = get_score_of_input_sequence(_input, **args)
+        args["model"] = model
         _input, excluded_r, rs = shuffle_input_sequence(_input, **args)
         args["rs"] = rs
-
         write_input_seq(_input, outoriginalfn)
+
         archive = do_evolution(_input, excluded_r, **args)
         dataset = return_dataset(input_seq=_input, archive=archive)
 
