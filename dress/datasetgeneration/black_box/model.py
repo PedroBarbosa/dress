@@ -38,6 +38,15 @@ class DeepLearningModel(object):
             self._apply_metric = lambda x: round(np.max(x, axis=0), 4)
         elif scoring_metric == "min":
             self._apply_metric = lambda x: round(np.min(x, axis=0), 4)
+        elif scoring_metric == "acceptor":
+            self._apply_metric = lambda x: round(x[0], 4)
+        elif scoring_metric == "donor":
+            self._apply_metric = lambda x: round(x[1], 4)
+        else:
+            logger.error(
+                "Invalid scoring metric. Please choose from mean, max, min, acceptor, donor"
+            )
+            exit(1)
 
     def data_preparation(
         self, seqs: List[str], model: str
@@ -74,7 +83,7 @@ class SpliceAI(DeepLearningModel):
         self,
         context: int = 5000,
         batch_size: int = 64,
-        scoring_metric: Literal["mean", "max", "min"] = "mean",
+        scoring_metric: Literal["mean", "max", "min", "acceptor", "donor"] = "mean",
     ):
         """SpliceAI model class"""
         super().__init__(context, batch_size, scoring_metric)
@@ -150,7 +159,7 @@ class Pangolin(DeepLearningModel):
         self,
         context: int = 5000,
         batch_size: int = 64,
-        scoring_metric: Literal["mean", "max", "min"] = "mean",
+        scoring_metric: Literal["mean", "max", "min", "acceptor", "donor"] = "mean",
         mode: Literal["ss_usage", "ss_probability"] = "ss_usage",
         tissue: Union[
             Literal["heart", "liver", "brain", "testis"],

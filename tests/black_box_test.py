@@ -129,11 +129,12 @@ class TestSpliceAI:
     SCORE_BY_MEAN = 0.3523
     SCORE_BY_MAX = 0.6814
     SCORE_BY_MIN = 0.0231
+    SCORE_BY_ACCEPTOR = 0.6814
     predict_batch = None
 
     @pytest.mark.parametrize(
         "scoring_metric,expected_result",
-        [("mean", SCORE_BY_MEAN), ("max", SCORE_BY_MAX), ("min", SCORE_BY_MIN)],
+        [("mean", SCORE_BY_MEAN), ("max", SCORE_BY_MAX), ("min", SCORE_BY_MIN), ("acceptor", SCORE_BY_ACCEPTOR)],
     )
     def test_original_seq_spliceai(self, scoring_metric, expected_result):
         model = SpliceAI(scoring_metric=scoring_metric)

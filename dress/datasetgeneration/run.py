@@ -167,10 +167,11 @@ def evo_alg_options_generate(fun):
     fun = click.option(
         "-msm",
         "--model_scoring_metric",
-        type=click.Choice(["mean", "max", "min"]),
+        type=click.Choice(["mean", "max", "min", "acceptor", "donor"]),
         default="mean",
         help="Aggregation function to label an input sequence. If 'mean', the mean of the acceptor and donor scores is used. "
-        "If 'max' or 'min', the max or min score between the acceptor and donor is used, respectively. Default: mean",
+        "If 'max' or 'min', the max or min score between the acceptor and donor is used, respectively. If 'acceptor' or 'donor', "
+        "the direct score of the acceptor or donor is used, respectively. Default: 'mean'.",
     )(fun)
 
     fun = click.option(
