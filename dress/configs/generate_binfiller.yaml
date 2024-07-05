@@ -14,7 +14,7 @@ generate:
   outbasename: null
   preprocessing:
     cache_dir: data/cache/
-    genome: data/cache/Homo_sapiens.GRCh38.dna.primary_assembly.fa
+    genome: data/cache/GRCh38.primary_assembly.genome.fa
     extract_dynamically: false
     extract_full_triplet: false
   fitness:

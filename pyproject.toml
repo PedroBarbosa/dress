@@ -4,7 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dress"
-description = "Deep learning based Resource for Exploring Splicing Signatures"
+description = "A toolkit for studying RNA splicing using deep learning models. 
+"
 authors = [
     {name = "Pedro Barbosa", email = "psbpedrobarbosa@gmail.com"},
 ]
